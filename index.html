@@ -937,6 +937,88 @@ body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; f
   .avatar-core { animation:avatar-pop .42s 1 !important; }
 }
 
+/* ===== Wordless intro: the whole game in 8 seconds (tap anywhere to skip) ===== */
+.intro-overlay {
+  position:fixed; inset:0; z-index:80; cursor:pointer;
+  background:linear-gradient(180deg, #bfe6f5, #e8f6fc 55%, #f6ecd8);
+  display:grid; place-items:center; overflow:hidden;
+}
+.intro-stage { position:relative; width:min(420px, 92vw); height:340px; }
+.intro-act { position:absolute; inset:0; display:grid; place-items:center; opacity:0; }
+.intro-act1 { animation:introAct 2.6s ease .2s both; }
+.intro-act2 { animation:introAct 2.2s ease 2.7s both; }
+.intro-act3 { animation:introAct 2.8s ease 4.8s both; }
+@keyframes introAct { 0%{opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{opacity:0} }
+
+.intro-bill {
+  background:#fff; border:1.5px solid var(--line-ink); border-radius:12px; padding:16px 22px;
+  font-family:var(--font-mono); font-size:24px; color:var(--ink); box-shadow:var(--shadow);
+  animation:introBill 1s cubic-bezier(.2,.9,.3,1.2) .3s both;
+}
+@keyframes introBill { from{transform:translateY(-70px) rotate(-6deg); opacity:0} to{transform:none; opacity:1} }
+.intro-card { position:absolute; font-size:52px; animation:introSwipe 1s ease 1s both; }
+@keyframes introSwipe { 0%{transform:translate(-150px,60px) rotate(-20deg); opacity:0} 45%{transform:translate(0,6px) rotate(0); opacity:1} 100%{transform:translate(150px,-30px) rotate(14deg); opacity:0} }
+.intro-stamp {
+  position:absolute; color:#1a7d4f; border:5px solid #1a7d4f; border-radius:10px; padding:2px 14px;
+  font-family:var(--font-mono); font-weight:900; font-size:34px; letter-spacing:.12em;
+  transform:rotate(-14deg); animation:introStamp .45s cubic-bezier(.2,2.2,.4,1) 1.7s both;
+}
+@keyframes introStamp { from{transform:rotate(-14deg) scale(3); opacity:0} to{transform:rotate(-14deg) scale(1); opacity:1} }
+
+.intro-points {
+  font-family:var(--font-mono); font-weight:900; font-size:56px; color:var(--sun-ink);
+  animation:introPop .7s cubic-bezier(.2,1.8,.4,1) 3s both;
+}
+@keyframes introPop { from{transform:scale(.2); opacity:0} to{transform:scale(1); opacity:1} }
+.intro-spark { position:absolute; font-size:28px; opacity:0; }
+.intro-spark.s1 { animation:introSpark 1.2s ease 3.2s both; --dx:-90px; --dy:-70px; }
+.intro-spark.s2 { animation:introSpark 1.2s ease 3.35s both; --dx:95px; --dy:-55px; }
+.intro-spark.s3 { animation:introSpark 1.2s ease 3.5s both; --dx:0px; --dy:85px; }
+@keyframes introSpark { 0%{transform:translate(0,0) scale(.4); opacity:0} 30%{opacity:1} 100%{transform:translate(var(--dx),var(--dy)) scale(1.15); opacity:0} }
+
+.intro-plane { position:absolute; top:36px; font-size:44px; animation:introFly 1.6s ease-in-out 5s both; }
+@keyframes introFly { from{transform:translateX(-220px) translateY(30px) rotate(8deg); opacity:0} 20%{opacity:1} to{transform:translateX(220px) translateY(-34px) rotate(-6deg); opacity:1} }
+.intro-postcard {
+  position:absolute; bottom:10px; background:#fff; border-radius:14px; padding:16px 22px 12px;
+  box-shadow:var(--shadow); border:1px solid var(--line-ink);
+  display:flex; align-items:center; gap:12px;
+  animation:introCard .8s cubic-bezier(.2,1.4,.4,1) 5.9s both;
+}
+@keyframes introCard { from{transform:translateY(120px) rotate(4deg); opacity:0} to{transform:none; opacity:1} }
+.intro-dest { font-size:56px; line-height:1; }
+.intro-face {
+  width:58px; height:58px; border-radius:50%; border:2px solid #fff; box-shadow:0 2px 8px rgba(11,74,110,.3);
+  background-size:500% 100%; background-position:75% 0; background-color:#eaf6fb; /* excited frame */
+}
+.intro-tagline {
+  position:absolute; left:0; right:0; bottom:96px; text-align:center;
+  font-size:30px; letter-spacing:.06em; animation:introFade .8s ease 7.4s both;
+}
+.intro-play {
+  position:absolute; left:50%; translate:-50% 0; bottom:28px; font-size:17px; padding:13px 40px;
+  animation:introFade .8s ease 7.8s both;
+}
+@keyframes introFade { from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none} }
+.intro-skip { position:fixed; bottom:14px; right:16px; color:var(--muted); font-size:12.5px; font-family:var(--font-mono); }
+@media (prefers-reduced-motion: reduce) {
+  .intro-act, .intro-bill, .intro-card, .intro-stamp, .intro-points, .intro-spark,
+  .intro-plane, .intro-postcard, .intro-tagline, .intro-play { animation:none; opacity:1; }
+  .intro-act1, .intro-act2 { display:none; } /* static poster: postcard + tagline + play */
+}
+
+/* onboarding: visual-first coach steps */
+.coach-icon { font-size:54px; line-height:1; margin:6px 0 2px; }
+.coach-modal h2 { margin-bottom:4px; }
+.coach-modal p { color:var(--muted); margin-top:2px; }
+
+/* first-game guidance: pulse the tab to tap next */
+.dock-tab.hint { box-shadow:0 0 0 3px rgba(232,169,46,.55); animation:hintPulse 1.6s ease-in-out infinite; }
+@keyframes hintPulse { 0%,100%{box-shadow:0 0 0 3px rgba(232,169,46,.55)} 50%{box-shadow:0 0 0 6px rgba(232,169,46,.25)} }
+@media (prefers-reduced-motion: reduce) { .dock-tab.hint { animation:none; } }
+
+/* one-tap best-for-all on the first bill */
+.bill-best-all { width:100%; margin:2px 0 6px; }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -2203,12 +2285,9 @@ window.PP_DATA = {
 
   // ---- Onboarding (first-run, step-by-step). Purely explanatory so it never blocks play.
   const ONBOARDING_STEPS = [
-    { title: "Welcome to Points Passport", body: "Build a life of travel from credit-card points. Draft dream experiences, run your points engine, and score the most Life Points by the end." },
-    { title: "1 · Choose a starter", body: "Single-player begins with two forgiving characters: Marcus earns big and flies often; Ren plays it safe with no fee traps. Both are easy to clear." },
-    { title: "2 · Draft your bucket list", body: "You are dealt three dream experiences. Keep at least one. Fulfill them for Life Points — but a goal you keep and never fulfill costs you points." },
-    { title: "3 · Take your turn", body: "Each season you get 2 actions: Apply a card, Pay Bills (earn points), Transfer points, claim an Experience, or Draw / Fulfill goals. Then End your turn." },
-    { title: "4 · Win with Life Points", body: "Claim experiences and fulfill goals that match your character's taste — matches score far more. Highest Life Points at the end wins." },
-    { title: "5 · Unlock more", body: "Earn achievements as you play. Clear one full game to unlock the six advanced characters, each with their own achievements to discover." },
+    { icon: "💳✨", title: "Pay bills → earn points", body: "The right card turns rent into rewards." },
+    { icon: "🏝️", title: "Spend points on dreams", body: "First class, suites, safaris — never cash." },
+    { icon: "🏆", title: "Most Life Points wins", body: "3 years. Match your character's taste." },
   ];
   function startTutorial() { state.onboarding = { open: true, step: 0 }; save(); render(); }
   function tutorialNav(delta) {
@@ -2219,13 +2298,41 @@ window.PP_DATA = {
     state.onboarding = { open: true, step: next }; save(); render();
   }
   function endTutorial() { state.onboarding = { open: false, step: 0 }; meta.onboardingDone = true; saveMeta(); save(); render(); }
+
+  // First-launch cinematic: the whole game in 8 wordless seconds.
+  // Beat 1: a bill gets PAID by a card · Beat 2: points burst · Beat 3: fly to Tokyo.
+  function renderIntroOverlay() {
+    return `
+      <div class="intro-overlay" data-action="intro-done" role="dialog" aria-label="Intro — tap to skip">
+        <div class="intro-stage">
+          <div class="intro-act intro-act1">
+            <div class="intro-bill">🧾 <strong>$2,000</strong></div>
+            <div class="intro-card">💳</div>
+            <div class="intro-stamp">PAID</div>
+          </div>
+          <div class="intro-act intro-act2">
+            <div class="intro-points">+60,000</div>
+            <span class="intro-spark s1">✨</span><span class="intro-spark s2">✨</span><span class="intro-spark s3">✨</span>
+          </div>
+          <div class="intro-act intro-act3">
+            <div class="intro-plane">✈️</div>
+            <div class="intro-postcard"><span class="intro-dest">🗼</span><span class="intro-face" style="background-image:url('${AVATAR_ART.lina}')"></span></div>
+          </div>
+          <div class="intro-tagline">💳 → ✨ → 🌍</div>
+          <button class="primary-button intro-play" data-action="intro-done">Play ▸</button>
+        </div>
+        <div class="intro-skip">tap to skip ▸▸</div>
+      </div>`;
+  }
+
   function renderOnboardingOverlay() {
     const o = state.onboarding; const step = ONBOARDING_STEPS[o.step]; const last = o.step === ONBOARDING_STEPS.length - 1;
     return `
       <div class="rules-backdrop">
         <section class="coach-modal" role="dialog" aria-modal="true">
           <button class="rules-close-button" data-action="tutorial-skip">&times;</button>
-          <div class="coach-eyebrow">Getting started · ${o.step + 1} / ${ONBOARDING_STEPS.length}</div>
+          <div class="coach-eyebrow">${o.step + 1} / ${ONBOARDING_STEPS.length}</div>
+          <div class="coach-icon">${step.icon}</div>
           <h2>${html(step.title)}</h2>
           <p>${html(step.body)}</p>
           <div class="coach-dots">${ONBOARDING_STEPS.map((_, i) => `<span class="${i === o.step ? "on" : ""}"></span>`).join("")}</div>
@@ -2646,6 +2753,8 @@ window.PP_DATA = {
       statusOpen: false,
       showHelp: false,
       moreOpen: false,
+      introOpen: !meta.introSeen,
+      turnSpent: false,
       folds: {},
       trip: null,
       simulationResults: null,
@@ -3024,7 +3133,7 @@ window.PP_DATA = {
       guard += 1;
       const p = activePlayer();
       if (!p) break;
-      if (p.isHuman) { state.actionsLeft = ACTIONS_PER_TURN; break; }
+      if (p.isHuman) { state.actionsLeft = ACTIONS_PER_TURN; state.turnSpent = false; break; }
       for (let i = 0; i < ACTIONS_PER_TURN && state.gameStarted && !state.result; i += 1) resolveAction(p, aiChooseAction(p));
       advancePointer();
     }
@@ -3044,6 +3153,7 @@ window.PP_DATA = {
     if (!canSpendAction()) return;
     resolveAction(activePlayer(), action);
     checkLiveAchievements();
+    if (action.type === "purchase") state.turnSpent = true;
     state.draftSelection = null;
     state.transferSelection = null;
     state.drawSelection = [];
@@ -3213,6 +3323,7 @@ window.PP_DATA = {
         ${state.achievementsOpen ? renderAchievementsOverlay() : ""}
         ${state.onboarding && state.onboarding.open ? renderOnboardingOverlay() : ""}
         ${state.trip && state.trip.open ? renderTripOverlay() : ""}
+        ${state.introOpen ? renderIntroOverlay() : ""}
       `;
       eachCarousel((el, k) => { if (carouselScroll[k]) el.scrollLeft = carouselScroll[k]; });
     } catch (err) {
@@ -3390,16 +3501,16 @@ window.PP_DATA = {
         <div class="eyebrow">Points Passport</div>
         <h1>Pay bills with the right cards. Earn points. Travel free.</h1>
         <div class="loop-strip" aria-label="How the game works">
-          <div class="loop-chip"><span class="loop-ic">💳</span><strong>Pay your bills</strong><span>Spend $4,000 on the right card</span></div>
+          <div class="loop-chip"><span class="loop-ic">💳</span><strong>Pay your bills</strong><span>with the right card</span></div>
           <span class="loop-arrow">→</span>
-          <div class="loop-chip"><span class="loop-ic">✨</span><strong>+60,000 points</strong><span>Welcome bonus hits</span></div>
+          <div class="loop-chip"><span class="loop-ic">✨</span><strong>+60,000 points</strong><span>bonus hits</span></div>
           <span class="loop-arrow">→</span>
-          <div class="loop-chip"><span class="loop-ic">🗼</span><strong>First Class to Tokyo</strong><span>Paid in points, not cash</span></div>
+          <div class="loop-chip"><span class="loop-ic">🗼</span><strong>First Class to Tokyo</strong><span>points, not cash</span></div>
         </div>
         <div class="cast-row" aria-label="Playable characters">
           ${["lina", "priya", "marcus", "sofia", "kai", "evelyn", "nova", "ava"].map((id) => `<span class="cast-face" style="background-image:url('${AVATAR_ART[id]}')"></span>`).join("")}
         </div>
-        <p class="hero-goal">Pick a character and live their life for 3 years — most Life Points wins.</p>
+        <p class="hero-goal">3 years · most Life Points wins</p>
         <button class="primary-button setup-start" data-action="start-game">Start your journey</button>
       </section>
       ${foldSection("setup-turn", "🎮", "How a turn works", `<div class="mini-list">
@@ -3435,7 +3546,7 @@ window.PP_DATA = {
       <section class="card-panel paper">
         <div class="eyebrow">Choose your character · ${html(chooser.name)}</div>
         <h1>Who are you?</h1>
-        <p>Different income, lifestyle cost, taste, and a signature skill each.${limited ? " These two starters clear easiest — win once to unlock six advanced characters." : " High salary eases fees; deep taste makes cheaper experiences score more."}</p>
+        <p>Each: income · taste · signature skill.${limited ? " Win once → unlock 6 more." : ""}</p>
       </section>
       <section class="character-grid">
         ${playable.map((c) => renderCharacterCard(c, false)).join("")}
@@ -3771,13 +3882,23 @@ window.PP_DATA = {
 
   // Fixed action dock: every available turn action + End turn, always on screen during the
   // main game loop. Disabled when it isn't the human's turn or actions are spent.
+  // First game only: glow the tab a new player should tap next (wordless guidance).
+  function suggestedTab() {
+    if (meta.gamesCleared > 0 || !canSpendAction()) return null;
+    if (!state.turnSpent) return "spend";
+    const p = humanSeatViewing();
+    if (p && openAccts(p).length < WALLET_LIMIT) return "draft";
+    return null;
+  }
   function renderActionDock() {
     const youTurn = isHumanTurn();
     const left = state.actionsLeft;
     const canAct = youTurn && left > 0;
+    const hint = suggestedTab();
     const tabBtn = ([screen, icon, label, kind]) => {
       const enabled = kind === "view" ? true : (canAct && actionUsable(screen));
-      return `<button class="dock-tab ${state.screen === screen ? "active" : ""}" ${enabled ? "" : "disabled"} data-action="screen" data-screen="${screen}"><span class="dock-tab-ic">${icon}</span><span class="dock-tab-lbl">${html(label)}</span></button>`;
+      const hinted = enabled && hint === screen && state.screen !== screen;
+      return `<button class="dock-tab ${state.screen === screen ? "active" : ""} ${hinted ? "hint" : ""}" ${enabled ? "" : "disabled"} data-action="screen" data-screen="${screen}"><span class="dock-tab-ic">${icon}</span><span class="dock-tab-lbl">${html(label)}</span></button>`;
     };
     return `
       <nav class="action-dock ${youTurn ? "your-turn" : ""}" aria-label="Menu and actions">
@@ -4053,6 +4174,7 @@ window.PP_DATA = {
       body = `
         <div class="bill-step">
           <div class="bill-count">${dots}<span>Bill ${step + 1} of ${nBills}</span></div>
+          ${step === 0 ? `<button class="secondary-button compact bill-best-all" data-action="assign-best-all">⚡ Best card for every bill</button>` : ""}
           <div class="bill-head"><div class="bill-amt">${fmtCash(amt)}</div><div><h2>${html(cat.label)}</h2><p>${html(cat.merchant)} · ${html(cat.detail)}</p></div></div>
           <div class="bill-hint">Charge it to a card:</div>
           <div class="bill-options">
@@ -4218,7 +4340,7 @@ window.PP_DATA = {
         <div class="eyebrow">How to play</div>
         <h1>You can't afford the dream. Your points can.</h1>
         <p>Turn ordinary bills into points, then spend those points on the experiences your character values most — over <strong>3 Years</strong>.</p>
-        <div class="guide-actions"><button class="secondary-button compact" data-action="replay-tutorial">▶ Replay walkthrough</button><button class="ghost-button compact" data-action="open-achievements">🏆 Achievements</button></div>
+        <div class="guide-actions"><button class="secondary-button compact" data-action="replay-intro">▶ Intro</button><button class="secondary-button compact" data-action="replay-tutorial">▶ Walkthrough</button><button class="ghost-button compact" data-action="open-achievements">🏆 Achievements</button></div>
       </section>
       ${foldSection("guide-loop", "🎯", "The 3-step loop", `<div class="grid-3 vision-grid">
           <div><strong>1 · Earn</strong><span>Charge your fixed bills to the right cards and trigger fat welcome bonuses.</span></div>
@@ -4363,6 +4485,8 @@ window.PP_DATA = {
     else if (a === "close-achievements") { state.achievementsOpen = false; save(); render(); }
     else if (a === "rules-topic") openRules(d.topic);
     else if (a === "continue-pass") continuePass();
+    else if (a === "intro-done") { state.introOpen = false; meta.introSeen = true; saveMeta(); save(); render(); }
+    else if (a === "replay-intro") { state.introOpen = true; save(); render(); }
     else if (a === "pick-character") pickCharacter(d.char);
     else if (a === "toggle-ticket") toggleTicketKeep(d.ticket);
     else if (a === "confirm-tickets") confirmTickets();
@@ -4370,6 +4494,7 @@ window.PP_DATA = {
     else if (a === "commit-drawgoals") { if ((state.drawSelection || []).length) humanAct({ type: "drawgoals", keep: state.drawSelection }); }
     else if (a === "select-draft") selectDraft(d.card);
     else if (a === "commit-apply") { if (state.draftSelection && state.cardMarket.includes(state.draftSelection)) humanAct({ type: "apply", cardId: state.draftSelection }); else { notify("Offer gone", "That offer was taken. Pick another."); state.draftSelection = null; render(); } }
+    else if (a === "assign-best-all") { state.spendAssignments = {}; state.billStep = spendCategories.length; save(); render(); }
     else if (a === "assign-bill") { const cat = spendCategories[state.billStep || 0]; if (cat) state.spendAssignments[cat.id] = d.card; state.billStep = Math.min((state.billStep || 0) + 1, spendCategories.length); save(); render(); }
     else if (a === "bill-back") { state.billStep = Math.max(0, (state.billStep || 0) - 1); save(); render(); }
     else if (a === "commit-spend") { const p = humanSeatViewing(); humanAct({ type: "purchase", assignments: { ...autoAssignments(p), ...state.spendAssignments } }); }
