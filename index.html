@@ -1058,6 +1058,28 @@ body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; f
 .map-modal .travel-map { height:auto; aspect-ratio:2.05/1; }
 .map-modal h2 .badge { margin-left:8px; vertical-align:middle; }
 
+/* year-end review checkpoint */
+.review-modal { max-width:480px; }
+.review-rows { display:grid; gap:8px; margin:12px 0; }
+.review-row { display:flex; justify-content:space-between; padding:9px 12px; background:rgba(13,59,82,.06); border-radius:10px; }
+.review-need { color:var(--sun-ink); font-weight:600; }
+.review-choices { display:grid; gap:8px; margin:10px 0; }
+.result-benchmark { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:10px 0; padding:10px 14px; border-radius:10px; background:rgba(232,169,46,.14); border:1px solid rgba(232,169,46,.4); font-weight:800; }
+.result-par { font-family:var(--font-mono); font-size:11.5px; color:var(--muted); font-weight:600; }
+
+/* season opportunities: keep one of three */
+.offer-modal { max-width:520px; }
+.offer-grid { display:grid; gap:9px; margin:12px 0 10px; }
+.offer-card {
+  display:grid; grid-template-columns:40px 1fr; grid-template-rows:auto auto; align-items:center;
+  gap:2px 10px; text-align:left; padding:11px 13px; border-radius:12px; cursor:pointer;
+  border:1.5px solid rgba(15,177,194,.4); background:rgba(15,177,194,.07); color:var(--text);
+}
+.offer-card:hover { border-color:var(--sea); background:rgba(15,177,194,.13); }
+.offer-card .offer-ic { grid-row:1 / span 2; font-size:26px; text-align:center; }
+.offer-card strong { font-size:15px; }
+.offer-card span:not(.offer-ic) { font-size:12.5px; color:var(--muted); }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -2022,6 +2044,17 @@ window.PP_DATA = {
   const SEASONS_PER_YEAR = 4;      // 3 Years x 4 Seasons = 12 turns/player (15-20 min target)
   const ACTIONS_PER_TURN = 2;
   const PAYCHECK = 10000;
+  const BONUS_WINDOW = 4; // seasons to earn a welcome bonus after opening a card
+  // Season Opportunities: 3 dealt each season, keep ONE (free choice, not an action).
+  const OPPORTUNITIES = [
+    { id: "sidegig", icon: "💼", name: "Side gig", text: "+$2,000 cash now" },
+    { id: "referral", icon: "🤝", name: "Card referral", text: "+6,000 Flexible now" },
+    { id: "transferPlus", icon: "📈", name: "Transfer window+", text: "Transfers pay +30% this season" },
+    { id: "billsDown", icon: "🧾", name: "Bill negotiation", text: "Bills −20% this season" },
+    { id: "expDiscount", icon: "🎟️", name: "Experience sale", text: "Experiences cost 8,000 less this season" },
+    { id: "scoreCare", icon: "🛡️", name: "Credit repair", text: "+10 Credit Score now" },
+  ];
+  const YEAR_COST_FACTOR = [1, 1.4, 1.8]; // cost-of-living creep: bills rise each Year
   const APR_ANNUAL = 24;           // ~24% APR, shown to the player
   const APR_SEASON = 0.06;         // ~6% per Season on a carried balance (≈24% APR over 4 seasons)
   const MISSED_BILL = 5000;        // a skipped season's bills become this carried balance
@@ -2051,10 +2084,10 @@ window.PP_DATA = {
   // You choose which card pays each one; paying it earns that card's points.
   // (ids stay travel/dining/everyday/bills so they map to each card's earn rates.)
   const spendCategories = [
-    { id: "bills", label: "Rent & Utilities", amount: 2000, merchant: "Rent, phone, internet", detail: "Your biggest fixed bill" },
-    { id: "dining", label: "Groceries & Dining", amount: 1500, merchant: "Groceries, takeout, coffee", detail: "Everyday food spend" },
-    { id: "everyday", label: "Shopping & Lifestyle", amount: 1000, merchant: "Clothes, gym, subscriptions", detail: "Lifestyle spend" },
-    { id: "travel", label: "Travel & Transit", amount: 1000, merchant: "Rideshare, gas, weekend trips", detail: "Getting around" }
+    { id: "bills", label: "Rent & Utilities", amount: 2600, merchant: "Rent, phone, internet", detail: "Your biggest fixed bill" },
+    { id: "dining", label: "Groceries & Dining", amount: 1800, merchant: "Groceries, takeout, coffee", detail: "Everyday food spend" },
+    { id: "everyday", label: "Shopping & Lifestyle", amount: 1300, merchant: "Clothes, gym, subscriptions", detail: "Lifestyle spend" },
+    { id: "travel", label: "Travel & Transit", amount: 1300, merchant: "Rideshare, gas, weekend trips", detail: "Getting around" }
   ];
 
   const transferTargets = ["travel", "dining"];
@@ -2441,7 +2474,7 @@ window.PP_DATA = {
   function costsText(costs) { return (costs || []).map(costOptionText).filter(Boolean).join("  or  ") || "Free"; }
 
   // ----- Player / account model ------------------------------------------
-  function makeAccount(id, year) { return { id, age: 1, status: "open", spendProgress: 0, bonusEarned: false, openedYear: year || 1, retainedYears: [] }; }
+  function makeAccount(id, year) { return { id, age: 1, status: "open", spendProgress: 0, bonusEarned: false, openedYear: year || 1, openedIdx: (typeof state === "object" && state && state.year ? curSeasonIdx() : 1), retainedYears: [] }; }
 
   function makePlayer(seat, isHuman, archetypeId) {
     const profile = strategy(archetypeId);
@@ -2517,7 +2550,10 @@ window.PP_DATA = {
     if (ch && ch.skill.transferFloor && ch.skill.transferTarget === target) m = Math.max(m, ch.skill.transferFloor);
     return m;
   }
-  function playerTransferOutput(player, amount, target) { return Math.floor(amount * playerTransferMult(player, target)); }
+  function playerTransferOutput(player, amount, target) {
+    const boost = player.isHuman && state.seasonBoost && state.seasonBoost.type === "transferPlus" ? 1.3 : 1;
+    return Math.floor(amount * playerTransferMult(player, target) * boost);
+  }
 
   function addRes(player, reward) {
     for (const [key, value] of Object.entries(reward || {})) {
@@ -2591,6 +2627,8 @@ window.PP_DATA = {
     if (amt && ev.discountResource && out[ev.discountResource]) {
       if (!ev.discountTag || e.tags.includes(ev.discountTag)) out[ev.discountResource] = Math.max(0, out[ev.discountResource] - amt);
     }
+    const seasonSale = player && player.isHuman && state.seasonBoost && state.seasonBoost.type === "expDiscount" ? 8000 : 0;
+    if (seasonSale) { for (const key of POINTS) { if (out[key]) out[key] = Math.max(0, out[key] - seasonSale); } }
     const personalDiscount = player ? characterCostDiscount(player, e) : 0;
     if (personalDiscount) {
       for (const key of POINTS) {
@@ -2618,6 +2656,8 @@ window.PP_DATA = {
   }
   function goalCostText(goal) { return goal.costs.map(goalOptionText).join("  or  "); }
   function optionAffordable(player, opt, goal) {
+    // Grand goals (9+ LP) are multi-season projects: a single welcome bonus cannot buy them.
+    if (opt.cardBonus && goal && goal.lp >= 9) return false;
     if (opt.cardBonus) { return player.wallet.some((a) => a.id === opt.cardBonus && a.status !== "closed" && a.bonusEarned && !a.bonusSpent); }
     if (opt.cash) return player.cash >= opt.cash;
     const priced = adjustCost(goal, opt, player);
@@ -2633,6 +2673,7 @@ window.PP_DATA = {
   // How close is the player to affording their DREAM via its easiest payment option?
   // Returns { frac 0..1, need: "what's still missing" } for the best option.
   function dreamGoal(player) { return player && player.dreamId ? ticket(player.dreamId) : null; }
+  function goalTier(t) { return t.lp >= 11 ? "★★★ Grand" : t.lp >= 9 ? "★★ Big" : t.lp >= 6 ? "★ Nice" : "☆ Easy"; }
   function dreamProgress(player) {
     const goal = dreamGoal(player);
     if (!goal) return null;
@@ -2645,7 +2686,8 @@ window.PP_DATA = {
         const c = card(opt.cardBonus);
         if (acc && c && c.bonus) {
           if (acc.bonusEarned && !acc.bonusSpent) { frac = 1; need = `Use your ${c.name} bonus`; }
-          else if (!acc.bonusSpent) { frac = Math.min(acc.spendProgress / c.bonus.needSpend, 0.99); need = `${fmtCash(Math.max(0, c.bonus.needSpend - acc.spendProgress))} more spend on ${c.name}`; }
+          else if (bonusMissed(acc, c)) { frac = 0; need = `${c.name} bonus window closed`; }
+          else if (!acc.bonusSpent) { frac = Math.min(acc.spendProgress / c.bonus.needSpend, 0.99); need = `${fmtCash(Math.max(0, c.bonus.needSpend - acc.spendProgress))} more spend on ${c.name} (⏳${bonusSeasonsLeft(acc)}s)`; }
         } else if (c) { need = `Get the ${c.name} card`; }
       } else if (opt.cash) {
         frac = Math.min(player.cash / opt.cash, 1);
@@ -2663,6 +2705,10 @@ window.PP_DATA = {
     return best;
   }
   function seasonsLeft() { return state.maxYears * SEASONS_PER_YEAR - ((state.year - 1) * SEASONS_PER_YEAR + state.season) + 1; }
+  function curSeasonIdx() { return (state.year - 1) * SEASONS_PER_YEAR + state.season; }
+  function yearCostFactor() { return YEAR_COST_FACTOR[Math.min(state.year, YEAR_COST_FACTOR.length) - 1] || 1; }
+  function bonusSeasonsLeft(acc) { return (acc.openedIdx || 1) + BONUS_WINDOW - curSeasonIdx(); }
+  function bonusMissed(acc, c) { return !!(c && c.bonus && !acc.bonusEarned && bonusSeasonsLeft(acc) <= 0); }
 
   // ----- Credit card offer deck & market ----------------------------------
   const CARD_MARKET_SIZE = 3;
@@ -2707,12 +2753,14 @@ window.PP_DATA = {
     const experienceScore = claimedExps(player).reduce((sum, e) => sum + lpValue(player, e), 0);
     const ticketScore = player.ticketIds.reduce((sum, id) => {
       const t = ticket(id); if (!t) return sum;
-      const mult = id === player.dreamId ? 2 : 1; // ★ the Dream counts double, both ways
-      if (player.goalsDone.includes(id)) return sum + lpValue(player, t) * mult;
-      return sum + (final ? -t.penalty * mult : 0);
+      const lived = (player.livedDreams || []).includes(id);
+      const upMult = lived || id === player.dreamId ? 2 : 1;     // dreams (incl. encores) pay double
+      const downMult = id === (player.originalDreamId || player.dreamId) ? 2 : 1; // only the first crown risks double
+      if (player.goalsDone.includes(id)) return sum + lpValue(player, t) * upMult;
+      return sum + (final ? -t.penalty * downMult : 0);
     }, 0);
-    const personalScore = milestonesFor(player).reduce((sum, m) => sum + (m.complete ? m.lp : 0), 0);
-    const pending = final ? 0 : player.ticketIds.filter((id) => !player.goalsDone.includes(id)).reduce((sum, id) => sum + (ticket(id) ? ticket(id).penalty * (id === player.dreamId ? 2 : 1) : 0), 0);
+    const personalScore = milestonesFor(player).reduce((sum, m) => sum + (m.complete ? m.lp : 0), 0) + (player.outplayed || 0);
+    const pending = final ? 0 : player.ticketIds.filter((id) => !player.goalsDone.includes(id)).reduce((sum, id) => sum + (ticket(id) ? ticket(id).penalty * (id === (player.originalDreamId || player.dreamId) ? 2 : 1) : 0), 0);
     return { total: experienceScore + ticketScore + personalScore, experiences: experienceScore, tickets: ticketScore, personal: personalScore, pendingRisk: pending };
   }
 
@@ -2828,6 +2876,9 @@ window.PP_DATA = {
       showHelp: false,
       moreOpen: false,
       mapOpen: false,
+      yearReview: null,
+      seasonOffer: null,
+      seasonBoost: null,
       introOpen: !meta.introSeen,
       turnSpent: false,
       folds: {},
@@ -2948,6 +2999,7 @@ window.PP_DATA = {
     if (keep.length < 1) { notify("Keep at least one", "Pick at least 1 bucket list goal to chase."); return; }
     chooser.ticketIds = keep;
     chooser.dreamId = keep.includes(state.dreamSelection) ? state.dreamSelection : keep[0];
+    chooser.originalDreamId = chooser.dreamId;
     chooser.ticketChosen = true;
     state.ticketSelection = [];
     state.dreamSelection = null;
@@ -2995,9 +3047,11 @@ window.PP_DATA = {
       const em = player.expenseMult || 1;
       const bonusMult = ch && ch.skill.bonusMult ? ch.skill.bonusMult : 1;
       player.cash += pay; // your paycheck
+      const ycf = yearCostFactor();
+      const billCut = player.isHuman && state.seasonBoost && state.seasonBoost.type === "billsDown" ? 0.8 : 1;
       for (const cat of spendCategories) {
-        const amount = Math.round(cat.amount * em);
-        player.cash -= amount; // the fixed expense is paid from your paycheck
+        const amount = Math.round(cat.amount * em * ycf * billCut);
+        player.cash -= amount; // the fixed expense is paid from your paycheck (rises each Year)
         const acc = player.wallet.find((a) => a.id === assignments[cat.id] && a.status !== "closed") || openAccts(player)[0]?.account;
         if (!acc) continue;
         const c = card(acc.id);
@@ -3005,7 +3059,7 @@ window.PP_DATA = {
         for (const [k, mult] of Object.entries(reward)) addRes(player, { [k]: amount * mult });
         if (c.cashback) addRes(player, { cash: c.cashback });
         acc.spendProgress += amount;
-        if (!acc.bonusEarned && c.bonus && acc.spendProgress >= c.bonus.needSpend) {
+        if (!acc.bonusEarned && c.bonus && bonusSeasonsLeft(acc) > 0 && acc.spendProgress >= c.bonus.needSpend) {
           acc.bonusEarned = true;
           const reward2 = {}; for (const [k, v] of Object.entries(c.bonus.reward)) reward2[k] = Math.round(v * bonusMult);
           addRes(player, reward2);
@@ -3053,6 +3107,14 @@ window.PP_DATA = {
         if (priced.flexible) player.flexClaims += 1;
       }
       player.goalsDone.push(goal.id);
+      if (goal.id === player.dreamId) {
+        (player.livedDreams = player.livedDreams || []).push(goal.id);
+        if (player.isHuman) { // mastery star: best dream tier lived with this character
+          const tier = goal.lp >= 11 ? 3 : goal.lp >= 9 ? 2 : 1;
+          meta.stars = meta.stars || {};
+          if ((meta.stars[player.characterId] || 0) < tier) { meta.stars[player.characterId] = tier; saveMeta(); }
+        }
+      }
       if (player.isHuman) { const nb = recordTrip(goal); startTrip(goal.id, nb); } // live the trip + collect badges
       player.lastAction = `Fulfilled "${goal.name}" (+${goal.lp} LP)`;
       logActor(player, `${player.name} fulfilled a bucket list goal: ${goal.name} (+${goal.lp} LP).`);
@@ -3154,6 +3216,7 @@ window.PP_DATA = {
     state.season = 1;
     state.year += 1;
     for (const player of state.players) player.year = state.year;
+    if (state.players.some((p) => p.isHuman)) state.yearReview = { endedYear: state.year - 1 };
     state.eventId = events[(state.year - 1) % events.length].id;
     addLog(`— Year ${state.year} begins. Event: ${currentEvent().name}. —`);
     state.activity.push(`Year ${state.year} begins. Event: ${currentEvent().name}.`);
@@ -3213,7 +3276,13 @@ window.PP_DATA = {
       guard += 1;
       const p = activePlayer();
       if (!p) break;
-      if (p.isHuman) { state.actionsLeft = ACTIONS_PER_TURN; state.turnSpent = false; break; }
+      if (p.isHuman) {
+        state.actionsLeft = ACTIONS_PER_TURN; state.turnSpent = false;
+        state.seasonBoost = null; // last season's kept opportunity expires
+        const deck = OPPORTUNITIES.map((o) => o.id).sort(() => Math.random() - 0.5);
+        state.seasonOffer = { options: deck.slice(0, 3), picked: null };
+        break;
+      }
       for (let i = 0; i < ACTIONS_PER_TURN && state.gameStarted && !state.result; i += 1) resolveAction(p, aiChooseAction(p));
       advancePointer();
     }
@@ -3236,7 +3305,9 @@ window.PP_DATA = {
     const dpAfter = dreamProgress(activePlayer());
     if (dpBefore && dpAfter && dpAfter.frac > dpBefore.frac + 0.005 && dpAfter.frac < 1) {
       const g = dreamGoal(activePlayer());
-      notify(`${destOf(g).emoji} ${Math.round(dpAfter.frac * 100)}% to your dream`, dpAfter.need);
+      const beat = [0.75, 0.5, 0.25].find((m) => dpBefore.frac < m && dpAfter.frac >= m);
+      if (beat) notify(`🏁 ${Math.round(beat * 100)}% — ${beat === 0.75 ? "almost there!" : beat === 0.5 ? "halfway to" : "on the road to"} ${destOf(g).emoji}`, dpAfter.need);
+      else notify(`${destOf(g).emoji} ${Math.round(dpAfter.frac * 100)}% to your dream`, dpAfter.need);
     }
     checkLiveAchievements();
     if (action.type === "purchase") state.turnSpent = true;
@@ -3410,6 +3481,8 @@ window.PP_DATA = {
         ${state.onboarding && state.onboarding.open ? renderOnboardingOverlay() : ""}
         ${state.trip && state.trip.open ? renderTripOverlay() : ""}
         ${state.mapOpen ? renderTravelMapOverlay() : ""}
+        ${state.yearReview ? renderYearReview() : ""}
+        ${!state.yearReview && state.gameStarted && !state.setupPhase && !state.result && isHumanTurn() ? renderSeasonOffer() : ""}
         ${state.introOpen ? renderIntroOverlay() : ""}
       `;
       eachCarousel((el, k) => { if (carouselScroll[k]) el.scrollLeft = carouselScroll[k]; });
@@ -3494,7 +3567,7 @@ window.PP_DATA = {
     const youTurn = isHumanTurn();
     const bits = p
       ? [youTurn ? "Your turn" : "Rivals playing", `Yr ${state.year}/${state.maxYears} · S${state.season}`, fmtCash(p.cash), `${fmtPts(p.res.flexible)} flex`,
-         (() => { const dp = dreamProgress(p); const g = dreamGoal(p); return dp && g ? `${destOf(g).emoji} ${Math.round(dp.frac * 100)}% dream` : `${p.score} credit`; })()]
+         (() => { const dp = dreamProgress(p); const g = dreamGoal(p); return dp && g ? `${destOf(g).emoji} ${Math.round(dp.frac * 100)}% · ${seasonsLeft()}s left` : `${p.score} credit`; })()]
       : [];
     return `
       <section class="status-fold ${open ? "open" : ""}">
@@ -3642,6 +3715,7 @@ window.PP_DATA = {
         ${locked.map((c) => renderCharacterCard(c, true)).join("")}
       </section>`;
   }
+  function charStars(chId) { const n = (meta.stars || {})[chId] || 0; return n ? " " + "⭐".repeat(n) : ""; }
   function renderCharacterCard(ch, locked) {
     const bonus = ch.lpAllMult ? `+${Math.round((ch.lpAllMult - 1) * 100)}% LP on everything` : `+${Math.round((ch.lpMult - 1) * 100)}% LP on ${ch.lpBonusTags.join(" / ")}`;
     const isStarter = !!ch.starter;
@@ -3650,7 +3724,7 @@ window.PP_DATA = {
         ${isStarter && !locked ? `<div class="starter-flag">Starter · easy to clear</div>` : ""}
         <div class="character-top" style="background:linear-gradient(135deg, ${ch.color1}, ${ch.color2})">
           <div class="character-portrait" style="${characterPortraitStyle(ch)}"><span>${ch.emoji}</span></div>
-          <div><div class="character-name">${html(ch.name)}</div><div class="character-title">${html(ch.title)}</div></div>
+          <div><div class="character-name">${html(ch.name)}${charStars(ch.id)}</div><div class="character-title">${html(ch.title)}</div></div>
         </div>
         <p class="character-tagline">${html(ch.tagline)}</p>
         <p class="character-intro">${html(ch.intro)}</p>
@@ -3690,10 +3764,10 @@ window.PP_DATA = {
             const kept = sel.includes(id);
             return `
             <article class="strategy-card ${kept ? "selected" : ""}">
-              <div class="strategy-card-head"><h3>${html(t.name)}</h3><span class="badge ${kept ? "good" : "warn"}">+${t.lp} / −${t.penalty} LP</span></div>
+              <div class="strategy-card-head"><h3>${html(t.name)}</h3><span class="badge ${kept ? "good" : "warn"}">${goalTier(t)} · +${t.lp} / −${t.penalty}</span></div>
               <p>${html(t.tags.join(" · "))}</p>
               <div class="goal-options"><span class="goal-options-label">Pay any one way:</span>${t.costs.map((o) => `<span class="goal-option">${html(goalOptionTextForPlayer(chooser, t, o))}</span>`).join("")}</div>
-              ${kept && state.dreamSelection === id ? `<div class="dream-flag big">★ Your Dream — counts 2×</div>` : ""}
+              ${kept && state.dreamSelection === id ? `<div class="dream-flag big">★ Your Dream — 2× LP if you live it, −2× if you don\'t</div>` : ""}
               <div class="actions">
                 <button class="${kept ? "ghost-button" : "primary-button"} compact" data-action="toggle-ticket" data-ticket="${id}">${kept ? "Drop" : "Keep this goal"}</button>
                 ${kept && state.dreamSelection !== id ? `<button class="secondary-button compact" data-action="set-dream" data-ticket="${id}">☆ Make Dream</button>` : ""}
@@ -3720,7 +3794,7 @@ window.PP_DATA = {
             const kept = sel.includes(id);
             return `
             <article class="strategy-card ${kept ? "selected" : ""}">
-              <div class="strategy-card-head"><h3>${html(t.name)}</h3><span class="badge ${kept ? "good" : "warn"}">+${t.lp} / −${t.penalty} LP</span></div>
+              <div class="strategy-card-head"><h3>${html(t.name)}</h3><span class="badge ${kept ? "good" : "warn"}">${goalTier(t)} · +${t.lp} / −${t.penalty}</span></div>
               <p>${html(t.tags.join(" · "))}</p>
               <div class="goal-options"><span class="goal-options-label">Pay any one way:</span>${t.costs.map((o) => `<span class="goal-option">${html(goalOptionTextForPlayer(p, t, o))}</span>`).join("")}</div>
               <button class="${kept ? "ghost-button" : "primary-button"}" data-action="toggle-drawgoal" data-ticket="${id}">${kept ? "Drop" : "Keep this goal"}</button>
@@ -3743,12 +3817,13 @@ window.PP_DATA = {
             const pay = !done ? chooseGoalPayment(p, t) : null;
             return `
             <article class="experience-card ${done ? "done" : ""} ${id === p.dreamId ? "dream" : ""}">
-              <div class="experience-city">${id === p.dreamId ? `<span class="dream-flag">★ Dream · 2×</span> · ` : ""}${html(t.tags.join(" · "))} · +${t.lp * (id === p.dreamId ? 2 : 1)} LP</div>
+              <div class="experience-city">${id === p.dreamId ? `<span class="dream-flag">★ Dream · 2×</span> · ` : ""}${goalTier(t)} · +${t.lp * (id === p.dreamId ? 2 : 1)} LP</div>
               <h3>${html(t.name)}</h3>
               <div class="goal-options">${t.costs.map((o) => `<span class="goal-option ${optionAffordable(p, o, t) ? "ok" : ""}">${html(goalOptionTextForPlayer(p, t, o))}</span>`).join("")}</div>
-              <div class="mini-line">Disappointment if missed <strong>−${t.penalty} LP</strong></div>
+              <div class="mini-line">Disappointment if missed <strong>−${t.penalty * (id === p.dreamId ? 2 : 1)} LP${id === p.dreamId ? " (2× dream)" : ""}</strong></div>
               <div class="actions">
                 <button class="primary-button compact" ${canAct && pay ? "" : "disabled"} data-action="fulfill" data-goal="${id}">${done ? "Booked ✓" : pay ? `✈ Book · ${goalOptionText(pay)}` : "Can't afford yet"}</button>
+                ${!done && id !== p.dreamId && p.goalsDone.includes(p.dreamId) ? `<button class="secondary-button compact" data-action="crown-encore" data-ticket="${id}">👑 Encore · 2× LP, no risk</button>` : ""}
               </div>
             </article>`;
           }).join("") || `<div class="log-entry">No goals kept.</div>`}
@@ -4017,8 +4092,22 @@ window.PP_DATA = {
       </nav>`;
   }
 
+  function pickOpportunity(id) {
+    const offer = state.seasonOffer;
+    if (!offer || offer.picked || !offer.options.includes(id)) return;
+    const p = humanSeatViewing(); if (!p) return;
+    offer.picked = id;
+    const o = OPPORTUNITIES.find((x) => x.id === id);
+    if (id === "sidegig") p.cash += 2000;
+    else if (id === "referral") addRes(p, { flexible: 6000 });
+    else if (id === "scoreCare") setScore(p, 10);
+    else state.seasonBoost = { type: id }; // season-long boosts consumed by their systems
+    notify(`${o.icon} ${o.name}`, o.text);
+    save(); render();
+  }
+
   function anyOverlayOpen() {
-    return !!(state.passPending || (state.rulesOverlay && state.rulesOverlay.open) || state.achievementsOpen || state.mapOpen || (state.onboarding && state.onboarding.open) || (state.trip && state.trip.open));
+    return !!(state.passPending || (state.rulesOverlay && state.rulesOverlay.open) || state.achievementsOpen || state.mapOpen || state.yearReview || (state.seasonOffer && !state.seasonOffer.picked && isHumanTurn() && state.gameStarted && !state.setupPhase && !state.result) || (state.onboarding && state.onboarding.open) || (state.trip && state.trip.open));
   }
 
   // ---- Live player avatar (fixed, bottom-right) --------------------------------
@@ -4234,7 +4323,7 @@ window.PP_DATA = {
       <article class="strategy-card ${selected ? "selected" : ""} ${owned ? "owned" : ""}">
         <div class="strategy-card-head"><h3>${html(c.name)}</h3><span class="badge ${c.fee ? "warn" : "good"}">${c.fee ? fmtCash(c.fee) + "/yr" : "No fee"}</span></div>
         <p>${html(c.perk)}</p>
-        <div class="mini-line">Welcome <strong>${html(c.bonus.label)}</strong></div>
+        <div class="mini-line">Welcome <strong>${html(c.bonus.label)} · ⏳${BONUS_WINDOW}s</strong></div>
         <div class="mini-line">Focus <strong>${pointLabel(c.focus)}${c.cashback ? " · " + fmtCash(c.cashback) + " cashback" : ""}</strong></div>
         ${c.scoreRequired ? `<div class="mini-line">Needs Credit Score <strong>${c.scoreRequired}</strong></div>` : ""}
         ${btn}
@@ -4249,7 +4338,7 @@ window.PP_DATA = {
         <div class="card-name">${html(c.name)}</div>
         <div class="tiny">${c.fee ? fmtCash(cardFee(c)) + "/yr" : "No fee"} · Age ${account.age} · ${account.status}</div>
         <div class="progress-row">
-          <div class="progress-label"><span>Welcome bonus</span><span>${account.bonusEarned ? "Earned" : fmtCash(account.spendProgress) + "/" + fmtCash(c.bonus.needSpend)}</span></div>
+          <div class="progress-label"><span>Welcome bonus</span><span>${account.bonusEarned ? "Earned" : bonusMissed(account, c) ? "⏳ window closed" : fmtCash(account.spendProgress) + "/" + fmtCash(c.bonus.needSpend) + " · ⏳" + bonusSeasonsLeft(account) + "s"}</span></div>
           <div class="progress-track"><div class="progress-fill green" style="width:${account.bonusEarned ? 100 : pct}%"></div></div>
         </div>
       </div>`;
@@ -4266,18 +4355,19 @@ window.PP_DATA = {
     const em = p.expenseMult || 1;
     const nBills = spendCategories.length;
     const step = Math.max(0, Math.min(state.billStep || 0, nBills));
-    const rewardStrOf = (cc, cat) => { const amt = Math.round(cat.amount * em); const r = earnFor(cc, cat.id); return Object.entries(r).map(([k, mult]) => `+${fmtPts(amt * mult)} ${pointLabel(k)}`).join(" · ") || "No points earned"; };
+    const ycf = yearCostFactor();
+    const rewardStrOf = (cc, cat) => { const amt = Math.round(cat.amount * em * ycf); const r = earnFor(cc, cat.id); return Object.entries(r).map(([k, mult]) => `+${fmtPts(amt * mult)} ${pointLabel(k)}`).join(" · ") || "No points earned"; };
     const dots = `<div class="bill-dots">${spendCategories.map((_, i) => `<span class="${i < step ? "done" : i === step ? "now" : ""}"></span>`).join("")}</div>`;
     let body;
     if (step < nBills) {
       const cat = spendCategories[step];
-      const amt = Math.round(cat.amount * em);
+      const amt = Math.round(cat.amount * em * ycf);
       const scoreOf = (cc) => Object.values(earnFor(cc, cat.id)).reduce((s, m) => s + m, 0);
       const best = accounts.slice().sort((a, b) => scoreOf(b.card) - scoreOf(a.card))[0];
       body = `
         <div class="bill-step">
           <div class="bill-count">${dots}<span>Bill ${step + 1} of ${nBills}</span></div>
-          ${step === 0 ? `<button class="secondary-button compact bill-best-all" data-action="assign-best-all">⚡ Best card for every bill</button>` : ""}
+          ${step === 0 ? `<button class="secondary-button compact bill-best-all" data-action="assign-best-all">🤖 Advisor: fill all bills</button>` : ""}
           <div class="bill-head"><div class="bill-amt">${fmtCash(amt)}</div><div><h2>${html(cat.label)}</h2><p>${html(cat.merchant)} · ${html(cat.detail)}</p></div></div>
           <div class="bill-hint">Charge it to a card:</div>
           <div class="bill-options">
@@ -4382,6 +4472,58 @@ window.PP_DATA = {
 
   // One place to SEE the life you've collected: world map dots + stacked memories.
   // Lives behind the 🗺️ top button as a full overlay (works on every screen).
+  // Year-end checkpoint: honest pace check on the dream + a recovery pick when behind.
+  // Season Opportunities: the season's randomness arrives as a CHOICE — keep 1 of 3.
+  function renderSeasonOffer() {
+    const offer = state.seasonOffer;
+    if (!offer || offer.picked) return "";
+    return `
+      <div class="rules-backdrop">
+        <section class="rules-modal offer-modal" role="dialog" aria-modal="true">
+          <div class="eyebrow">Season ${state.season} · Year ${state.year}</div>
+          <h2>This season's opportunities — keep one</h2>
+          <div class="offer-grid">
+            ${offer.options.map((id) => { const o = OPPORTUNITIES.find((x) => x.id === id); return `
+              <button class="offer-card" data-action="pick-opportunity" data-opt="${id}">
+                <span class="offer-ic">${o.icon}</span><strong>${html(o.name)}</strong><span>${html(o.text)}</span>
+              </button>`; }).join("")}
+          </div>
+          <button class="ghost-button compact" data-action="skip-opportunity">Pass — the rest go away</button>
+        </section>
+      </div>`;
+  }
+
+  function renderYearReview() {
+    const p = humanSeatViewing();
+    const yr = state.yearReview;
+    if (!p || !yr) return "";
+    const dp = dreamProgress(p) || { frac: 0, need: "" };
+    const g = dreamGoal(p);
+    const elapsed = (yr.endedYear * SEASONS_PER_YEAR) / (state.maxYears * SEASONS_PER_YEAR);
+    const onPace = dp.frac >= 1 || dp.frac >= elapsed - 0.05;
+    return `
+      <div class="rules-backdrop">
+        <section class="rules-modal review-modal" role="dialog" aria-modal="true">
+          <div class="eyebrow">Year ${yr.endedYear} wrapped</div>
+          <h2>${onPace ? "🎉 On pace for your dream" : "⚠️ Your dream is at risk"}</h2>
+          <div class="review-rows">
+            <div class="review-row"><span>${g ? destOf(g).emoji + " " + html(g.name) : "Dream"}</span><strong>${Math.round(dp.frac * 100)}%</strong></div>
+            <div class="review-row"><span>Seasons left</span><strong>${seasonsLeft()}</strong></div>
+            <div class="review-row"><span>Cash</span><strong>${fmtCash(p.cash)}</strong></div>
+            <div class="review-row"><span>Next year's bills</span><strong>+${Math.round((yearCostFactor() - 1) * 100)}% cost of living</strong></div>
+          </div>
+          ${!onPace && dp.frac < 1 ? `
+          <p class="review-need">${html(dp.need || "")}</p>
+          <div class="review-choices">
+            <button class="primary-button" data-action="year-recover" data-opt="sidegig">💼 Side gig · +$4,000 now</button>
+            <button class="secondary-button" data-action="year-recover" data-opt="focus">⚡ Focus season · +1 action</button>
+          </div>
+          <button class="ghost-button compact" data-action="year-continue">No thanks, continue</button>` : `
+          <button class="primary-button" data-action="year-continue">Continue →</button>`}
+        </section>
+      </div>`;
+  }
+
   function renderTravelMapOverlay() {
     const t = meta.travel || {};
     const dests = Object.keys(t.dests || {});
@@ -4444,6 +4586,9 @@ window.PP_DATA = {
               <span class="result-total">${r.score.total} LP</span>
             </div>`).join("")}
         </div>
+        ${(() => { const hp = result.ranked.find((r) => r.player.isHuman); if (!hp || state.players.length > 1) return ""; const t = hp.score.total;
+          const band = t >= 45 ? "Legendary life ★★★" : t >= 30 ? "Rich life ★★" : t >= 18 ? "Good life ★" : "A quiet start";
+          return `<div class="result-benchmark"><span>${band}</span><span class="result-par">par: 18 · rich: 30 · legendary: 45 LP</span></div>`; })()}
         ${meta.advancedUnlocked && meta.gamesCleared >= 1 ? `<div class="result-unlock">✦ Advanced cast unlocked — pick a new character next game for more achievements.</div>` : ""}
         <div class="actions"><button class="primary-button" data-action="reset">Play again</button><button class="ghost-button" data-action="open-achievements">🏆 Achievements ${achievementsUnlockedCount()}/${ACHIEVEMENTS.length}</button><button class="secondary-button" data-action="screen" data-screen="passport">Review Passport</button></div>
       </section>`;
@@ -4621,11 +4766,16 @@ window.PP_DATA = {
     else if (a === "rules-topic") openRules(d.topic);
     else if (a === "continue-pass") continuePass();
     else if (a === "toggle-map") { state.mapOpen = !state.mapOpen; save(); render(); }
+    else if (a === "year-continue") { state.yearReview = null; save(); render(); }
+    else if (a === "pick-opportunity") { pickOpportunity(d.opt); }
+    else if (a === "skip-opportunity") { if (state.seasonOffer) state.seasonOffer.picked = "skip"; save(); render(); }
+    else if (a === "year-recover") { const p = humanSeatViewing(); if (p && state.yearReview) { if (d.opt === "sidegig") { p.cash += 4000; notify("💼 Side gig", "+$4,000 toward the dream."); } else { state.actionsLeft += 1; notify("⚡ Focus season", "+1 action this season."); } state.yearReview = null; save(); render(); } }
     else if (a === "intro-done") { state.introOpen = false; meta.introSeen = true; saveMeta(); save(); render(); }
     else if (a === "replay-intro") { state.introOpen = true; save(); render(); }
     else if (a === "pick-character") pickCharacter(d.char);
     else if (a === "toggle-ticket") toggleTicketKeep(d.ticket);
     else if (a === "set-dream") { if ((state.ticketSelection || []).includes(d.ticket)) { state.dreamSelection = d.ticket; save(); render(); } }
+    else if (a === "crown-encore") { const p = humanSeatViewing(); if (p && p.ticketIds.includes(d.ticket) && !p.goalsDone.includes(d.ticket) && p.goalsDone.includes(p.dreamId)) { p.dreamId = d.ticket; const g = ticket(d.ticket); notify("👑 Encore dream", `${g.name} — 2× LP if you live it, no extra risk.`); save(); render(); } }
     else if (a === "confirm-tickets") confirmTickets();
     else if (a === "toggle-drawgoal") toggleDrawGoal(d.ticket);
     else if (a === "commit-drawgoals") { if ((state.drawSelection || []).length) humanAct({ type: "drawgoals", keep: state.drawSelection }); }
@@ -4634,7 +4784,16 @@ window.PP_DATA = {
     else if (a === "assign-best-all") { state.spendAssignments = {}; state.billStep = spendCategories.length; save(); render(); }
     else if (a === "assign-bill") { const cat = spendCategories[state.billStep || 0]; if (cat) state.spendAssignments[cat.id] = d.card; state.billStep = Math.min((state.billStep || 0) + 1, spendCategories.length); save(); render(); }
     else if (a === "bill-back") { state.billStep = Math.max(0, (state.billStep || 0) - 1); save(); render(); }
-    else if (a === "commit-spend") { const p = humanSeatViewing(); humanAct({ type: "purchase", assignments: { ...autoAssignments(p), ...state.spendAssignments } }); }
+    else if (a === "commit-spend") {
+      const p = humanSeatViewing();
+      const manual = { ...autoAssignments(p), ...state.spendAssignments };
+      // Outplayed: your manual routing beats the Advisor's plan → +1 LP (once per season)
+      if (p && Object.keys(state.spendAssignments || {}).length && !state.turnSpent) {
+        const val = (asg) => spendCategories.reduce((sum, cat) => { const acc = p.wallet.find((x) => x.id === asg[cat.id] && x.status !== "closed"); if (!acc) return sum; const c = card(acc.id); const amt = cat.amount; return sum + Object.values(earnFor(c, cat.id)).reduce((a, m) => a + m, 0) * amt + (!acc.bonusEarned && c.bonus && bonusSeasonsLeft(acc) > 0 ? amt * 0.4 : 0); }, 0);
+        if (val(manual) > val(autoAssignments(p)) + 1) { p.outplayed = (p.outplayed || 0) + 1; notify("🏆 Outplayed the Advisor", "+1 LP — your routing beats the auto plan."); }
+      }
+      humanAct({ type: "purchase", assignments: manual });
+    }
     else if (a === "select-transfer") selectTransfer(d.target, Number(d.amount));
     else if (a === "commit-transfer") { if (state.transferSelection) humanAct({ type: "transfer", target: state.transferSelection.target, amount: state.transferSelection.amount }); }
     else if (a === "claim") humanAct({ type: "experience", expId: d.experience });
