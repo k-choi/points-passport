@@ -755,6 +755,60 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .trip-badges-won-label { width:100%; text-align:center; color:var(--sun); font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
 .trip-badge-chip { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28); border-radius:99px; padding:6px 12px; font-weight:700; font-size:13px; }
 
+/* ============================================================
+   GAME FEEL (all screens): living sky, depth, tactile motion,
+   friendlier type — without the glossy-gradient "AI" look.
+   ============================================================ */
+:root {
+  --font-display: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, var(--font-body);
+  --shadow: 0 12px 30px rgba(11,74,110,.16);
+}
+/* a living travel sky behind everything: drifting clouds, a warm sun, a passing plane */
+body::before { content:""; position:fixed; inset:0; z-index:-2; pointer-events:none;
+  background:
+    radial-gradient(260px 120px at 12% 20%, rgba(255,255,255,.9), rgba(255,255,255,0) 70%),
+    radial-gradient(320px 150px at 84% 26%, rgba(255,255,255,.75), rgba(255,255,255,0) 70%),
+    radial-gradient(200px 96px at 52% 10%, rgba(255,255,255,.85), rgba(255,255,255,0) 70%),
+    radial-gradient(260px 130px at 30% 44%, rgba(255,255,255,.6), rgba(255,255,255,0) 72%),
+    radial-gradient(circle at 90% 6%, rgba(255,213,120,.6), rgba(255,213,120,0) 42%);
+  background-repeat:no-repeat; animation: skyDrift 70s ease-in-out infinite alternate; }
+@keyframes skyDrift { from { transform:translate3d(-16px,0,0);} to { transform:translate3d(16px,6px,0);} }
+body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; font-size:24px; opacity:.55; pointer-events:none; animation: skyPlane 48s linear infinite; }
+@keyframes skyPlane { from { transform:translate(0,0) rotate(4deg);} 50% { transform:translate(62vw,-14px) rotate(4deg);} to { transform:translate(124vw,8px) rotate(4deg);} }
+
+/* friendlier, bolder headings */
+.logo-title, .card-panel h1, .card-panel h2, .screen-title h1, .trip-modal h2, .coach-modal h2, .result-panel h1 { font-family:var(--font-display); }
+.card-panel h1, .screen-title h1 { font-size:clamp(23px, 5.6vw, 31px); font-weight:800; letter-spacing:-.015em; }
+
+/* chunkier, more dimensional surfaces */
+.card-panel, .resource, .status-toggle, .character-card, .turn-panel, .game-board, .status-body .board-resource-bar > *, .travel-badge { border-radius:14px; }
+.card-panel, .turn-panel, .resource { box-shadow:var(--shadow); }
+
+/* tactile, pressable buttons (game-style depth on the filled CTAs) */
+.primary-button, .secondary-button, .danger-button, .ghost-button, .pill-button, .dock-btn, .dock-tab { border-radius:13px; }
+.primary-button, .secondary-button { box-shadow:0 5px 0 rgba(11,74,110,.22); transition:transform .09s ease, box-shadow .09s ease, filter .12s; }
+.primary-button:hover, .secondary-button:hover { filter:brightness(1.05); }
+.primary-button:active, .secondary-button:active { transform:translateY(4px); box-shadow:0 1px 0 rgba(11,74,110,.22); filter:brightness(.98); }
+.dock-tab { transition:transform .1s ease, background .12s, border-color .12s; }
+.dock-tab:not(:disabled):hover { transform:translateY(-2px); border-color:rgba(15,177,194,.4); }
+.dock-tab:not(:disabled):active { transform:translateY(1px); }
+
+/* playful resource HUD: colored icon chips */
+.resource .emoji { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; background:rgba(15,177,194,.15); color:var(--sea-deep); font-size:20px; box-shadow:inset 0 -2px 6px rgba(11,74,110,.06); }
+.resource.mini-resource .emoji { width:30px; height:30px; font-size:15px; border-radius:9px; }
+
+/* rounded, poppy pills */
+.badge, .starter-flag { border-radius:999px; }
+
+/* a gentle glow-pulse on the biggest calls to action */
+.setup-start, .trip-cta { animation: ctaPulse 2.6s ease-in-out infinite; }
+@keyframes ctaPulse { 0%,100% { box-shadow:0 5px 0 rgba(11,74,110,.22), 0 0 0 0 rgba(15,177,194,.0);} 50% { box-shadow:0 5px 0 rgba(11,74,110,.22), 0 0 0 8px rgba(15,177,194,.14);} }
+
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after, .setup-start, .trip-cta { animation:none; }
+  .primary-button, .secondary-button, .dock-tab { transition:none; }
+}
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -3169,7 +3223,7 @@ window.PP_DATA = {
       <section class="card-panel paper setup-hero">
         <div class="eyebrow">Points Passport</div>
         <h1>Different lives. Different dreams. Same points game.</h1>
-        <p>Build a life of travel from credit-card points and outscore your AI rivals.</p>
+        <p>Build a life of travel from credit-card points — one dream trip at a time.</p>
         <button class="primary-button setup-start" data-action="start-game">Start game</button>
       </section>
       <section class="grid-2">
@@ -3178,8 +3232,8 @@ window.PP_DATA = {
           <div class="mini-list">
             <div class="mini-line">Each Season<strong>up to ${ACTIONS_PER_TURN} actions</strong></div>
             <div class="mini-line">Apply · Pay Bills · Transfer<strong>build your engine</strong></div>
-            <div class="mini-line">Experience<strong>claim from the shared board</strong></div>
-            <div class="mini-line">Rivals act between your turns<strong>cards disappear</strong></div>
+            <div class="mini-line">Experience<strong>claim from the board</strong></div>
+            <div class="mini-line">Every season<strong>fresh offers appear</strong></div>
           </div>
         </div>
         <div class="card-panel">
