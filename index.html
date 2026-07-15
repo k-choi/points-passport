@@ -890,9 +890,9 @@ body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; f
 .bill-option-reward { font-family:var(--font-mono); font-size:12.5px; font-weight:700; color:var(--sea-deep); white-space:nowrap; }
 .bill-option:disabled { opacity:.5; }
 .bill-summary { display:grid; gap:6px; margin-bottom:14px; }
-.bill-summary-row { display:flex; justify-content:space-between; gap:12px; padding:9px 12px; border-radius:10px; background:var(--cloud-2); border:1px solid var(--line); font-size:14px; }
+.bill-summary-row { display:flex; justify-content:space-between; gap:12px; padding:8px 12px; border-radius:10px; background:var(--cloud-2); border:1px solid var(--line); font-size:14px; }
 .bill-summary-card { font-weight:700; color:var(--sea-deep); }
-.bill-earned { margin:8px 0 16px; }
+.bill-earned { margin:8px 0 10px; }
 .bill-earned-label { display:block; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:6px; }
 .bill-earned-chips { display:flex; flex-wrap:wrap; gap:6px; }
 .bill-earned-chip { font-family:var(--font-mono); font-weight:700; font-size:13px; color:var(--sea-deep); background:rgba(15,177,194,.12); border-radius:99px; padding:5px 11px; }
@@ -1081,6 +1081,74 @@ body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; f
 .offer-card .offer-ic { grid-row:1 / span 2; font-size:26px; text-align:center; }
 .offer-card strong { font-size:15px; }
 .offer-card span:not(.offer-ic) { font-size:12.5px; color:var(--muted); }
+
+/* ===== Short screens (iPhone SE class): compress spacing so scenes still fit ===== */
+@media (max-height: 720px) {
+  .app-shell { padding:6px; }
+  .card-panel { padding:10px 12px; margin-bottom:8px; }
+  .card-panel h1 { font-size:17px; margin-bottom:5px; }
+  .screen-title { margin-bottom:8px; }
+  .topbar { margin-bottom:4px; }
+  .icon-button { width:36px; height:36px; font-size:15px; }
+  .status-fold { margin-bottom:8px; }
+  .paycheck-banner { padding:8px 12px; }
+  .paycheck-banner strong { font-size:22px; }
+  .bill-head { gap:8px; }
+  .bill-amt { font-size:20px; padding:8px 10px; }
+  .bill-option { padding:8px 10px; }
+  .bill-summary > div, .review-row { padding:6px 10px; }
+  .bill-earned { margin:6px 0; }
+  .character-card { gap:6px; padding-bottom:8px; }
+  .character-top { padding:8px 10px; }
+  .character-stats div { padding:4px 6px; }
+  .character-skill { padding:6px 8px; }
+  .loop-chip { padding:6px 4px; }
+  .cast-face { width:26px; height:26px; }
+  .coach-icon { font-size:40px; }
+  .fold-head { padding:9px 12px; }
+  .avatar-core { width:56px; height:56px; }
+  .player-avatar { bottom:64px; }
+  .action-dock { padding:5px 6px calc(5px + env(safe-area-inset-bottom, 0px)); }
+  .app-shell.has-dock { padding-bottom:64px; }
+  .setup-start { padding:10px 22px; }
+  .hero-goal { margin:2px 0 6px; }
+  .offer-card { padding:8px 10px; }
+  .strategy-card { gap:5px; padding:10px; }
+  .experience-card { gap:5px; padding:10px; }
+}
+
+/* short screens, pass 2: drop flavor copy, tighten the tall offenders */
+@media (max-height: 720px) {
+  /* setup-phase screens are not in .lean mode — hide their intro paragraphs here */
+  .card-panel.paper p, .character-tagline { display:none; }
+  .character-name { font-size:17px; }
+  .character-emoji, .character-portrait { width:38px; height:38px; }
+  .character-stats strong { font-size:12px; }
+  .bill-count { margin-bottom:4px; }
+  .bill-hint { margin:4px 0; }
+  .bill-summary { gap:4px; margin-bottom:8px; }
+  .bill-summary-row { padding:6px 10px; font-size:13px; }
+  .bill-earned-chip { font-size:12px; padding:3px 9px; }
+  .bill-actions .primary-button { padding:10px 14px; }
+  .strategy-card .mini-line { padding-top:4px; margin-top:4px; font-size:12px; }
+  .strategy-card p, .experience-card p { font-size:12px; margin-top:3px; }
+  .market-head { margin:2px 0 6px; }
+  .vision-grid div { padding:8px 10px; }
+  .guide-actions { margin-top:6px; }
+  .coach-modal p { display:block; } /* keep coach copy: it IS the content */
+}
+
+/* short screens, final trim */
+@media (max-height: 720px) {
+  .paycheck-banner strong { font-size:19px; }
+  .paycheck-banner { padding:6px 10px; }
+  .bill-dots span { width:14px; }
+  .bill-earned-label { margin-bottom:3px; }
+  .strategy-card .primary-button, .strategy-card .secondary-button, .strategy-card .ghost-button { padding:9px 12px; font-size:13.5px; }
+  .strategy-card-head h3 { font-size:15px; }
+  .deck-count { font-size:11px; }
+  .bill-option-name { font-size:13.5px; }
+}
 
 </style>
 </head><body>
