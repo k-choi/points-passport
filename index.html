@@ -581,6 +581,8 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
     overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
     scroll-snap-type:x mandatory; scroll-padding-left:10px; scrollbar-width:none;
     overscroll-behavior-x:contain;
+    contain:layout; /* keep scroller content out of the ROOT's scrollable overflow —
+                       without this iOS shrink-to-fits the page (zoomed-out + smear) */
   }
   .character-grid::-webkit-scrollbar, .draft-grid::-webkit-scrollbar,
   .experience-grid::-webkit-scrollbar, .partner-grid::-webkit-scrollbar,
