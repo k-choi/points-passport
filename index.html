@@ -1019,6 +1019,40 @@ body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; f
 /* one-tap best-for-all on the first bill */
 .bill-best-all { width:100%; margin:2px 0 6px; }
 
+/* ===== Dream spine + travel memories map ===== */
+.dream-flag { color:var(--sun-ink); font-weight:900; }
+.dream-flag.big { border:1.5px dashed rgba(232,169,46,.7); background:rgba(232,169,46,.12); border-radius:10px; padding:6px 10px; text-align:center; font-size:13px; }
+.experience-card.dream { border-color:rgba(232,169,46,.65); box-shadow:0 0 0 2px rgba(232,169,46,.22); }
+
+.travel-map { position:relative; border-radius:12px; overflow:hidden; border:1px solid var(--line); height:128px; }
+.travel-map-inner { position:absolute; left:0; right:0; top:-10px; } /* crop the arctic; dots align to this box */
+.travel-map img { display:block; width:100%; height:auto; }
+.map-dot {
+  position:absolute; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%;
+  background:var(--coral); border:2px solid #fff; box-shadow:0 0 0 3px rgba(242,105,74,.3);
+  animation:mapDot 2.4s ease-in-out infinite;
+}
+@keyframes mapDot { 0%,100%{box-shadow:0 0 0 3px rgba(242,105,74,.3)} 50%{box-shadow:0 0 0 7px rgba(242,105,74,.12)} }
+
+.memory-strip { display:flex; gap:10px; overflow-x:auto; padding:6px 2px 2px; scrollbar-width:none; }
+.memory-strip::-webkit-scrollbar { display:none; }
+.memory-stack { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:1px; }
+.memory-stack strong { font-size:12px; }
+.memory-stack span { font-size:10.5px; color:var(--muted); }
+.memory-fan { position:relative; width:50px; height:40px; margin-bottom:3px; }
+.polaroid {
+  position:absolute; left:8px; top:1px; width:33px; height:36px; display:grid; place-items:center;
+  background:#fff; border:1px solid var(--line-ink); border-radius:4px; font-size:17px;
+  box-shadow:0 2px 5px rgba(11,74,110,.2); padding-bottom:5px;
+}
+.polaroid.p0 { transform:rotate(-8deg) translate(-6px,2px); }
+.polaroid.p1 { transform:rotate(5deg) translate(6px,0); }
+.polaroid.p2 { transform:rotate(-2deg) translate(0,-3px); }
+@media (prefers-reduced-motion: reduce) { .map-dot { animation:none; } }
+
+.passport-bar { display:flex; align-items:center; gap:10px; padding:10px 14px; margin-bottom:12px; background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); }
+.passport-bar strong { flex:1; font-family:var(--font-display); font-size:17px; }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -2591,6 +2625,40 @@ window.PP_DATA = {
   }
   function goalAffordable(player, goal) { return !!chooseGoalPayment(player, goal); }
 
+  // How close is the player to affording their DREAM via its easiest payment option?
+  // Returns { frac 0..1, need: "what's still missing" } for the best option.
+  function dreamGoal(player) { return player && player.dreamId ? ticket(player.dreamId) : null; }
+  function dreamProgress(player) {
+    const goal = dreamGoal(player);
+    if (!goal) return null;
+    if (player.goalsDone.includes(goal.id)) return { frac: 1, need: "Fulfilled!" };
+    let best = { frac: 0, need: "" };
+    for (const opt of goal.costs) {
+      let frac = 0, need = "";
+      if (opt.cardBonus) {
+        const acc = player.wallet.find((a) => a.id === opt.cardBonus && a.status !== "closed");
+        const c = card(opt.cardBonus);
+        if (acc && c && c.bonus) {
+          if (acc.bonusEarned && !acc.bonusSpent) { frac = 1; need = `Use your ${c.name} bonus`; }
+          else if (!acc.bonusSpent) { frac = Math.min(acc.spendProgress / c.bonus.needSpend, 0.99); need = `${fmtCash(Math.max(0, c.bonus.needSpend - acc.spendProgress))} more spend on ${c.name}`; }
+        } else if (c) { need = `Get the ${c.name} card`; }
+      } else if (opt.cash) {
+        frac = Math.min(player.cash / opt.cash, 1);
+        need = `${fmtCash(Math.max(0, opt.cash - player.cash))} more cash`;
+      } else {
+        const priced = adjustCost(goal, opt, player);
+        const needTotal = Object.values(priced).reduce((a, b) => a + b, 0) || 1;
+        const haveTotal = Object.entries(priced).reduce((a, [k, v]) => a + Math.min(player.res[k] || 0, v), 0);
+        frac = Math.min(haveTotal / needTotal, 1);
+        const missing = Object.entries(priced).map(([k, v]) => ({ k, m: v - Math.min(player.res[k] || 0, v) })).filter((x) => x.m > 0);
+        need = missing.length ? missing.map((x) => `${fmtPts(x.m)} ${pointLabel(x.k)}`).join(" + ") + " to go" : "Ready to fulfill!";
+      }
+      if (frac >= best.frac) best = { frac, need };
+    }
+    return best;
+  }
+  function seasonsLeft() { return state.maxYears * SEASONS_PER_YEAR - ((state.year - 1) * SEASONS_PER_YEAR + state.season) + 1; }
+
   // ----- Credit card offer deck & market ----------------------------------
   const CARD_MARKET_SIZE = 3;
   function shuffle(arr, rnd) {
@@ -2634,11 +2702,12 @@ window.PP_DATA = {
     const experienceScore = claimedExps(player).reduce((sum, e) => sum + lpValue(player, e), 0);
     const ticketScore = player.ticketIds.reduce((sum, id) => {
       const t = ticket(id); if (!t) return sum;
-      if (player.goalsDone.includes(id)) return sum + lpValue(player, t);
-      return sum + (final ? -t.penalty : 0);
+      const mult = id === player.dreamId ? 2 : 1; // ★ the Dream counts double, both ways
+      if (player.goalsDone.includes(id)) return sum + lpValue(player, t) * mult;
+      return sum + (final ? -t.penalty * mult : 0);
     }, 0);
     const personalScore = milestonesFor(player).reduce((sum, m) => sum + (m.complete ? m.lp : 0), 0);
-    const pending = final ? 0 : player.ticketIds.filter((id) => !player.goalsDone.includes(id)).reduce((sum, id) => sum + (ticket(id) ? ticket(id).penalty : 0), 0);
+    const pending = final ? 0 : player.ticketIds.filter((id) => !player.goalsDone.includes(id)).reduce((sum, id) => sum + (ticket(id) ? ticket(id).penalty * (id === player.dreamId ? 2 : 1) : 0), 0);
     return { total: experienceScore + ticketScore + personalScore, experiences: experienceScore, tickets: ticketScore, personal: personalScore, pendingRisk: pending };
   }
 
@@ -2836,7 +2905,7 @@ window.PP_DATA = {
     fresh.goalDeck = dealGoalOffers(players);
     for (const pl of players) {
       if (pl.isHuman) { pl.ticketIds = []; pl.ticketChosen = false; }
-      else { applyCharacter(pl, strategy(pl.strategyId).characterId); pl.ticketIds = aiKeepTickets(pl); pl.ticketChosen = true; }
+      else { applyCharacter(pl, strategy(pl.strategyId).characterId); pl.ticketIds = aiKeepTickets(pl); pl.dreamId = pl.ticketIds[0] || null; pl.ticketChosen = true; }
     }
     fresh.players = players;
     fresh.order = players.map((_, i) => i);
@@ -2872,8 +2941,10 @@ window.PP_DATA = {
     const keep = state.ticketSelection.filter((id) => chooser.ticketOffer.includes(id));
     if (keep.length < 1) { notify("Keep at least one", "Pick at least 1 bucket list goal to chase."); return; }
     chooser.ticketIds = keep;
+    chooser.dreamId = keep.includes(state.dreamSelection) ? state.dreamSelection : keep[0];
     chooser.ticketChosen = true;
     state.ticketSelection = [];
+    state.dreamSelection = null;
     const next = activeTicketChooser();
     if (next) { if (state.playerSetup.humanPlayers > 1) state.passPending = true; }
     else { state.setupPhase = null; state.screen = "board"; runUntilHuman(); }
@@ -2883,6 +2954,9 @@ window.PP_DATA = {
   function toggleTicketKeep(id) {
     const sel = state.ticketSelection || [];
     state.ticketSelection = sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id];
+    // ★ The Dream: first kept goal is crowned automatically; if the dream is dropped,
+    // the crown moves to the next kept goal. Player can move it with "Make Dream".
+    if (!state.ticketSelection.includes(state.dreamSelection)) state.dreamSelection = state.ticketSelection[0] || null;
     save(); render();
   }
   function toggleDrawGoal(id) {
@@ -3151,7 +3225,13 @@ window.PP_DATA = {
   // After a human commits one action. They keep acting until actions run out or they end the turn.
   function humanAct(action) {
     if (!canSpendAction()) return;
+    const dpBefore = dreamProgress(activePlayer());
     resolveAction(activePlayer(), action);
+    const dpAfter = dreamProgress(activePlayer());
+    if (dpBefore && dpAfter && dpAfter.frac > dpBefore.frac + 0.005 && dpAfter.frac < 1) {
+      const g = dreamGoal(activePlayer());
+      notify(`${destOf(g).emoji} ${Math.round(dpAfter.frac * 100)}% to your dream`, dpAfter.need);
+    }
     checkLiveAchievements();
     if (action.type === "purchase") state.turnSpent = true;
     state.draftSelection = null;
@@ -3221,7 +3301,7 @@ window.PP_DATA = {
     sim.board = filled.board; sim.decks = filled.decks;
     sim.players = archetypeIds.map((id, i) => makePlayer(i, false, id));
     sim.goalDeck = dealGoalOffers(sim.players, rng);
-    for (const p of sim.players) { applyCharacter(p, strategy(p.strategyId).characterId); p.ticketIds = aiKeepTickets(p); p.ticketChosen = true; }
+    for (const p of sim.players) { applyCharacter(p, strategy(p.strategyId).characterId); p.ticketIds = aiKeepTickets(p); p.dreamId = p.ticketIds[0] || null; p.ticketChosen = true; }
     const dealt = fillMarket([], freshCardDeck(rng));
     sim.cardMarket = dealt.market; sim.cardDeck = dealt.deck;
     sim.order = sim.players.map((_, i) => i);
@@ -3405,7 +3485,8 @@ window.PP_DATA = {
     const p = humanSeatViewing();
     const youTurn = isHumanTurn();
     const bits = p
-      ? [youTurn ? "Your turn" : "Rivals playing", `Yr ${state.year}/${state.maxYears} · S${state.season}`, fmtCash(p.cash), `${fmtPts(p.res.flexible)} flex`, `${p.score} credit`]
+      ? [youTurn ? "Your turn" : "Rivals playing", `Yr ${state.year}/${state.maxYears} · S${state.season}`, fmtCash(p.cash), `${fmtPts(p.res.flexible)} flex`,
+         (() => { const dp = dreamProgress(p); const g = dreamGoal(p); return dp && g ? `${destOf(g).emoji} ${Math.round(dp.frac * 100)}% dream` : `${p.score} credit`; })()]
       : [];
     return `
       <section class="status-fold ${open ? "open" : ""}">
@@ -3604,7 +3685,11 @@ window.PP_DATA = {
               <div class="strategy-card-head"><h3>${html(t.name)}</h3><span class="badge ${kept ? "good" : "warn"}">+${t.lp} / −${t.penalty} LP</span></div>
               <p>${html(t.tags.join(" · "))}</p>
               <div class="goal-options"><span class="goal-options-label">Pay any one way:</span>${t.costs.map((o) => `<span class="goal-option">${html(goalOptionTextForPlayer(chooser, t, o))}</span>`).join("")}</div>
-              <button class="${kept ? "ghost-button" : "primary-button"}" data-action="toggle-ticket" data-ticket="${id}">${kept ? "Drop" : "Keep this goal"}</button>
+              ${kept && state.dreamSelection === id ? `<div class="dream-flag big">★ Your Dream — counts 2×</div>` : ""}
+              <div class="actions">
+                <button class="${kept ? "ghost-button" : "primary-button"} compact" data-action="toggle-ticket" data-ticket="${id}">${kept ? "Drop" : "Keep this goal"}</button>
+                ${kept && state.dreamSelection !== id ? `<button class="secondary-button compact" data-action="set-dream" data-ticket="${id}">☆ Make Dream</button>` : ""}
+              </div>
             </article>`;
           }).join("")}
         </div>
@@ -3642,20 +3727,20 @@ window.PP_DATA = {
     const canAct = canSpendAction();
     return `
       <section class="card-panel">
-        <div class="screen-title"><div><div class="eyebrow">Goals</div><h1>Fulfill a goal</h1><p>Pay a goal any one way — points, a card's signon bonus, or cash. Fulfilling uses one action. Unfulfilled goals you kept cost you LP at the end.</p></div><div class="title-actions"><span class="badge good">${p.goalsDone.length}/${p.ticketIds.length} done</span><button class="ghost-button compact" data-action="screen" data-screen="drawgoals">◇ Draw more</button></div></div>
+        <div class="screen-title"><div><div class="eyebrow">Trips</div><h1>Book a trip</h1><p>Book any trip you can afford — points, a card's signon bonus, or cash. Booking uses one action. Trips you keep and never take cost LP.</p></div><div class="title-actions"><span class="badge good">${p.goalsDone.length}/${p.ticketIds.length} booked</span><button class="ghost-button compact" data-action="screen" data-screen="drawgoals">◇ Draw more</button></div></div>
         <div class="experience-grid">
           ${p.ticketIds.map((id) => {
             const t = ticket(id);
             const done = p.goalsDone.includes(id);
             const pay = !done ? chooseGoalPayment(p, t) : null;
             return `
-            <article class="experience-card ${done ? "done" : ""}">
-              <div class="experience-city">${html(t.tags.join(" · "))} · +${t.lp} LP</div>
+            <article class="experience-card ${done ? "done" : ""} ${id === p.dreamId ? "dream" : ""}">
+              <div class="experience-city">${id === p.dreamId ? `<span class="dream-flag">★ Dream · 2×</span> · ` : ""}${html(t.tags.join(" · "))} · +${t.lp * (id === p.dreamId ? 2 : 1)} LP</div>
               <h3>${html(t.name)}</h3>
               <div class="goal-options">${t.costs.map((o) => `<span class="goal-option ${optionAffordable(p, o, t) ? "ok" : ""}">${html(goalOptionTextForPlayer(p, t, o))}</span>`).join("")}</div>
               <div class="mini-line">Disappointment if missed <strong>−${t.penalty} LP</strong></div>
               <div class="actions">
-                <button class="primary-button compact" ${canAct && pay ? "" : "disabled"} data-action="fulfill" data-goal="${id}">${done ? "Fulfilled ✓" : pay ? `Fulfill (${goalOptionText(pay)})` : "Can't afford yet"}</button>
+                <button class="primary-button compact" ${canAct && pay ? "" : "disabled"} data-action="fulfill" data-goal="${id}">${done ? "Booked ✓" : pay ? `✈ Book · ${goalOptionText(pay)}` : "Can't afford yet"}</button>
               </div>
             </article>`;
           }).join("") || `<div class="log-entry">No goals kept.</div>`}
@@ -3704,6 +3789,13 @@ window.PP_DATA = {
     "world-food-tour": { city: "the world", emoji: "🌍", flight: "PP 001" },
     "aspen-ski": { city: "Aspen", emoji: "🎿", flight: "PP 970" },
     "patagonia-trek": { city: "Patagonia", emoji: "🏔️", flight: "PP 561" }
+  };
+  // City -> [x%, y%] on data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDEwMDAgNTAwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IldvcmxkIG1hcCI+CiAgPHJlY3Qgd2lkdGg9IjEwMDAiIGhlaWdodD0iNTAwIiBmaWxsPSIjZGRlZWY3Ii8+CiAgPGcgZmlsbD0iIzllYzRkOCIgc3Ryb2tlPSIjN2ZhZmM5IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPgogICAgPCEtLSBOb3J0aCBBbWVyaWNhIChBbGFza2Eg4oaSIENhbmFkYSDihpIgVVMg4oaSIE1leGljbyDihpIgQ2VudHJhbCBBbWVyaWNhKSAtLT4KICAgIDxwYXRoIGQ9Ik00MiAxMTggUTYwIDk2IDkyIDEwMCBMMTI4IDkyIFExNjAgNzggMTk2IDg0IEwyMzIgODAgUTI2OCA4NCAyOTggMTAwIEwzMDYgMTE4IFEzMTIgMTM4IDI5NiAxNTAgTDI4OCAxNzAgUTI3OCAxODYgMjYyIDE5MiBMMjQ2IDIwNiBRMjM2IDIyNCAyMjQgMjM4IEwyMTYgMjU4IFEyMTAgMjcyIDIyMCAyODIgTDIzMiAyOTIgUTI0MCAzMDAgMjM0IDMwOCBMMjIyIDMwNiBRMjA2IDI5NiAxOTYgMjgyIEwxODQgMjYyIFExNzAgMjQ0IDE1NiAyMzIgTDEzOCAyMTQgUTEyMCAxOTggMTEyIDE3OCBMOTYgMTYwIFE3NiAxNDYgNjQgMTM0IFoiLz4KICAgIDwhLS0gR3JlZW5sYW5kIC0tPgogICAgPHBhdGggZD0iTTMzMCA1MiBRMzUyIDQwIDM3NiA0OCBRMzkyIDU4IDM4OCA3NiBRMzgyIDk0IDM2NCAxMDAgUTM0NCAxMDIgMzM0IDg4IFEzMjQgNjggMzMwIDUyIFoiLz4KICAgIDwhLS0gU291dGggQW1lcmljYSAtLT4KICAgIDxwYXRoIGQ9Ik0yODIgMjQyIFEzMDAgMjI4IDMyMiAyMzQgTDM0NiAyNDQgUTM2OCAyNTIgMzc0IDI3MiBRMzgwIDI5NiAzNjggMzE2IFEzNTYgMzM4IDM0NCAzNTggUTMzNCAzODAgMzI2IDQwMCBRMzIwIDQxNiAzMTAgNDIwIFEyOTggNDIwIDI5NCA0MDQgUTI5MCAzODQgMjkyIDM2NCBRMjg4IDM0MiAyODAgMzI0IFEyNzIgMzA0IDI3MiAyODQgUTI3MiAyNjAgMjgyIDI0MiBaIi8+CiAgICA8IS0tIEV1cm9wZSAtLT4KICAgIDxwYXRoIGQ9Ik00NzAgMTMyIFE0NjQgMTE4IDQ3NiAxMTAgTDQ5MiAxMDAgUTUwMiA4NCA1MTYgNzYgTDUzNiA2MiBRNTUyIDU2IDU2MCA2NiBRNTY2IDc4IDU1NiA4OCBMNTQ4IDEwMiBRNTYwIDEwMCA1NzIgMTA0IFE1ODIgMTEyIDU3NiAxMjIgTDU2MiAxMzIgUTU0OCAxMzggNTM2IDEzNiBRNTI0IDE0MCA1MTYgMTQ4IFE1MDQgMTU2IDQ5MiAxNTQgUTQ3OCAxNTAgNDcwIDEzMiBaIi8+CiAgICA8IS0tIFVLICsgSWNlbGFuZCAtLT4KICAgIDxwYXRoIGQ9Ik00ODIgOTYgUTQ3NiA4NiA0ODQgODAgUTQ5NCA3NiA0OTggODYgUTUwMCA5NiA0OTIgMTAyIFE0ODQgMTA0IDQ4MiA5NiBaIi8+CiAgICA8cGF0aCBkPSJNNDM2IDY0IFE0NDYgNTYgNDU4IDYwIFE0NjYgNjggNDYwIDc2IFE0NTAgODIgNDQwIDc2IFE0MzIgNzAgNDM2IDY0IFoiLz4KICAgIDwhLS0gQWZyaWNhICsgTWFkYWdhc2NhciAtLT4KICAgIDxwYXRoIGQ9Ik00NzAgMTYwIFE0ODYgMTQ2IDUxMCAxNDggTDU0NiAxNTIgUTU3NCAxNTIgNTk2IDE2MiBRNjE2IDE3MiA2MTggMTkyIFE2MTggMjE0IDYwNCAyMjggUTU5NCAyNDQgNTkyIDI2MiBRNTkwIDI4NCA1NzggMzAwIFE1NjYgMzE4IDU1MiAzMzAgUTUzOCAzNDAgNTI4IDMzMCBRNTE4IDMxOCA1MTYgMzAyIFE1MTAgMjg0IDQ5OCAyNzIgUTQ4NCAyNTggNDc2IDI0MCBRNDY2IDIyMCA0NjQgMjAwIFE0NjIgMTc4IDQ3MCAxNjAgWiIvPgogICAgPHBhdGggZD0iTTYyOCAyODggUTYzOCAyNzggNjQ2IDI4OCBRNjUwIDMwMiA2NDIgMzE2IFE2MzQgMzI2IDYyNiAzMTggUTYyMCAzMDQgNjI4IDI4OCBaIi8+CiAgICA8IS0tIEFzaWEgKFNpYmVyaWEg4oaSIENoaW5hIOKGkiBJbmRpYSDihpIgU0UgQXNpYSDihpIgSmFwYW4pIC0tPgogICAgPHBhdGggZD0iTTU2NiA2MCBRNjAwIDQ0IDY0OCA0OCBMNzEyIDQ0IFE3NjggNDAgODIwIDUyIEw4NzYgNjIgUTkxMiA3MiA5MTggOTQgUTkyMiAxMTYgOTA0IDEyOCBRODg4IDE0MCA4NjggMTM4IFE4NTIgMTQ4IDgzOCAxNjAgUTgyNiAxNzYgODEwIDE4NCBRNzk2IDE5MiA3ODQgMjA0IFE3NzYgMjIwIDc2NCAyMjggUTc1MCAyMzQgNzQyIDIyMiBRNzM2IDIwOCA3MjYgMTk4IFE3MTggMjEwIDcxNCAyMjYgUTcwOCAyNDQgNjk4IDI0MCBRNjg4IDIzMiA2ODYgMjE0IFE2ODIgMTk0IDY3MiAxODAgUTY1OCAxNjggNjQwIDE2NCBRNjIwIDE2MiA2MDQgMTUyIFE1ODggMTQ0IDU4MCAxMjggUTU3MCAxMTAgNTcwIDkyIFE1NjYgNzYgNTY2IDYwIFoiLz4KICAgIDwhLS0gSmFwYW4gLS0+CiAgICA8cGF0aCBkPSJNODgwIDEyOCBRODkwIDExOCA4OTggMTI2IFE5MDQgMTM2IDg5NiAxNDggUTg4OCAxNjAgODc4IDE2NiBRODcwIDE2MiA4NzIgMTUwIFE4NzYgMTM4IDg4MCAxMjggWiIvPgogICAgPCEtLSBJbmRvbmVzaWEgLyBQaGlsaXBwaW5lcyBkb3RzIC0tPgogICAgPHBhdGggZD0iTTc3MiAyNDQgUTc4NiAyMzggNzk4IDI0NiBRODA2IDI1NCA3OTYgMjYwIFE3ODIgMjY0IDc3MiAyNTYgWiIvPgogICAgPHBhdGggZD0iTTgxNiAyNDYgUTgyOCAyNDAgODM4IDI0OCBRODQ0IDI1NiA4MzQgMjYyIFE4MjIgMjY0IDgxNCAyNTYgWiIvPgogICAgPHBhdGggZD0iTTg1MiAyMzIgUTg2MiAyMjYgODcwIDIzNCBRODc0IDI0MiA4NjYgMjQ4IFE4NTYgMjUwIDg1MCAyNDIgWiIvPgogICAgPCEtLSBBdXN0cmFsaWEgKyBOWiAtLT4KICAgIDxwYXRoIGQ9Ik04MTIgMjkyIFE4MzQgMjc4IDg2MiAyODIgUTg5MiAyODYgOTA4IDMwMiBROTIwIDMxOCA5MTIgMzM2IFE5MDIgMzU0IDg4MCAzNTggUTg1NiAzNjIgODM2IDM1MiBRODE4IDM0MiA4MTAgMzI0IFE4MDQgMzA2IDgxMiAyOTIgWiIvPgogICAgPHBhdGggZD0iTTkyOCAzNjAgUTkzOCAzNTIgOTQ2IDM2MCBROTUwIDM3MCA5NDIgMzgwIFE5MzIgMzg4IDkyNiAzNzggUTkyMiAzNjggOTI4IDM2MCBaIi8+CiAgPC9nPgogIDwhLS0gZXF1YXRvciBoaW50IC0tPgogIDxsaW5lIHgxPSIwIiB5MT0iMjUwIiB4Mj0iMTAwMCIgeTI9IjI1MCIgc3Ryb2tlPSIjYmNkOWU4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNCA4Ii8+Cjwvc3ZnPgo= (1400x760, equirectangular-ish).
+  const CITY_COORDS = {
+    "Tokyo": [88.8, 30], "Kyoto": [87.5, 31], "the Maldives": [70.4, 47.7], "Singapore": [78.8, 49.3],
+    "Paris": [50.7, 23], "Kenya": [60.2, 50.7], "Iceland": [44.7, 13.5], "Ibiza": [50.4, 28.4],
+    "New York": [29.4, 27.4], "Napa Valley": [16, 28.7], "the Amalfi Coast": [54.1, 27.4],
+    "Hawaii": [6.2, 38.2], "Aspen": [20.3, 28.2], "Patagonia": [30, 75],
   };
   function destOf(goal) {
     const d = TRIP_DESTS[goal && goal.id];
@@ -3762,7 +3854,10 @@ window.PP_DATA = {
   function recordTrip(goal) {
     const t = meta.travel = meta.travel || {};
     t.total = (t.total || 0) + 1;
-    t.dests = t.dests || {}; t.dests[destOf(goal).city] = true;
+    t.dests = t.dests || {};
+    const d = destOf(goal);
+    t.dests[d.city] = (t.dests[d.city] === true ? 1 : (t.dests[d.city] || 0)) + 1; // legacy true -> 1
+    (t.memories = t.memories || []).push({ city: d.city, emoji: d.emoji, name: goal.name, ts: Date.now() });
     for (const c of tripCategories(goal)) t[c] = (t[c] || 0) + 1;
     const newly = [];
     for (const b of TRAVEL_BADGES) { if (!meta.badges[b.id] && BADGE_RULES[b.id] && BADGE_RULES[b.id](t)) { meta.badges[b.id] = Date.now(); newly.push(b); } }
@@ -4277,17 +4372,38 @@ window.PP_DATA = {
       </article>`;
   }
 
+  // One place to SEE the life you've collected: world map dots + stacked memories.
+  function renderTravelMap() {
+    const t = meta.travel || {};
+    const dests = Object.keys(t.dests || {});
+    const mems = (t.memories || []).slice();
+    const byCity = {};
+    for (const m of mems) (byCity[m.city] = byCity[m.city] || []).push(m);
+    const dots = dests.filter((city) => CITY_COORDS[city]).map((city) => {
+      const [x, y] = CITY_COORDS[city];
+      return `<span class="map-dot" style="left:${x}%;top:${y}%" title="${html(city)}"></span>`;
+    }).join("");
+    const stacks = Object.entries(byCity).map(([city, ms]) => `
+      <div class="memory-stack">
+        <div class="memory-fan">${ms.slice(-3).map((m, i) => `<span class="polaroid p${i}">${m.emoji}</span>`).join("")}</div>
+        <strong>${html(city)}</strong><span>${ms.length} ${ms.length === 1 ? "memory" : "memories"}</span>
+      </div>`).join("");
+    const inner = `
+      <div class="travel-map"><div class="travel-map-inner"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDEwMDAgNTAwIiByb2xlPSJpbWciIGFyaWEtbGFiZWw9IldvcmxkIG1hcCI+CiAgPHJlY3Qgd2lkdGg9IjEwMDAiIGhlaWdodD0iNTAwIiBmaWxsPSIjZGRlZWY3Ii8+CiAgPGcgZmlsbD0iIzllYzRkOCIgc3Ryb2tlPSIjN2ZhZmM5IiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPgogICAgPCEtLSBOb3J0aCBBbWVyaWNhIChBbGFza2Eg4oaSIENhbmFkYSDihpIgVVMg4oaSIE1leGljbyDihpIgQ2VudHJhbCBBbWVyaWNhKSAtLT4KICAgIDxwYXRoIGQ9Ik00MiAxMTggUTYwIDk2IDkyIDEwMCBMMTI4IDkyIFExNjAgNzggMTk2IDg0IEwyMzIgODAgUTI2OCA4NCAyOTggMTAwIEwzMDYgMTE4IFEzMTIgMTM4IDI5NiAxNTAgTDI4OCAxNzAgUTI3OCAxODYgMjYyIDE5MiBMMjQ2IDIwNiBRMjM2IDIyNCAyMjQgMjM4IEwyMTYgMjU4IFEyMTAgMjcyIDIyMCAyODIgTDIzMiAyOTIgUTI0MCAzMDAgMjM0IDMwOCBMMjIyIDMwNiBRMjA2IDI5NiAxOTYgMjgyIEwxODQgMjYyIFExNzAgMjQ0IDE1NiAyMzIgTDEzOCAyMTQgUTEyMCAxOTggMTEyIDE3OCBMOTYgMTYwIFE3NiAxNDYgNjQgMTM0IFoiLz4KICAgIDwhLS0gR3JlZW5sYW5kIC0tPgogICAgPHBhdGggZD0iTTMzMCA1MiBRMzUyIDQwIDM3NiA0OCBRMzkyIDU4IDM4OCA3NiBRMzgyIDk0IDM2NCAxMDAgUTM0NCAxMDIgMzM0IDg4IFEzMjQgNjggMzMwIDUyIFoiLz4KICAgIDwhLS0gU291dGggQW1lcmljYSAtLT4KICAgIDxwYXRoIGQ9Ik0yODIgMjQyIFEzMDAgMjI4IDMyMiAyMzQgTDM0NiAyNDQgUTM2OCAyNTIgMzc0IDI3MiBRMzgwIDI5NiAzNjggMzE2IFEzNTYgMzM4IDM0NCAzNTggUTMzNCAzODAgMzI2IDQwMCBRMzIwIDQxNiAzMTAgNDIwIFEyOTggNDIwIDI5NCA0MDQgUTI5MCAzODQgMjkyIDM2NCBRMjg4IDM0MiAyODAgMzI0IFEyNzIgMzA0IDI3MiAyODQgUTI3MiAyNjAgMjgyIDI0MiBaIi8+CiAgICA8IS0tIEV1cm9wZSAtLT4KICAgIDxwYXRoIGQ9Ik00NzAgMTMyIFE0NjQgMTE4IDQ3NiAxMTAgTDQ5MiAxMDAgUTUwMiA4NCA1MTYgNzYgTDUzNiA2MiBRNTUyIDU2IDU2MCA2NiBRNTY2IDc4IDU1NiA4OCBMNTQ4IDEwMiBRNTYwIDEwMCA1NzIgMTA0IFE1ODIgMTEyIDU3NiAxMjIgTDU2MiAxMzIgUTU0OCAxMzggNTM2IDEzNiBRNTI0IDE0MCA1MTYgMTQ4IFE1MDQgMTU2IDQ5MiAxNTQgUTQ3OCAxNTAgNDcwIDEzMiBaIi8+CiAgICA8IS0tIFVLICsgSWNlbGFuZCAtLT4KICAgIDxwYXRoIGQ9Ik00ODIgOTYgUTQ3NiA4NiA0ODQgODAgUTQ5NCA3NiA0OTggODYgUTUwMCA5NiA0OTIgMTAyIFE0ODQgMTA0IDQ4MiA5NiBaIi8+CiAgICA8cGF0aCBkPSJNNDM2IDY0IFE0NDYgNTYgNDU4IDYwIFE0NjYgNjggNDYwIDc2IFE0NTAgODIgNDQwIDc2IFE0MzIgNzAgNDM2IDY0IFoiLz4KICAgIDwhLS0gQWZyaWNhICsgTWFkYWdhc2NhciAtLT4KICAgIDxwYXRoIGQ9Ik00NzAgMTYwIFE0ODYgMTQ2IDUxMCAxNDggTDU0NiAxNTIgUTU3NCAxNTIgNTk2IDE2MiBRNjE2IDE3MiA2MTggMTkyIFE2MTggMjE0IDYwNCAyMjggUTU5NCAyNDQgNTkyIDI2MiBRNTkwIDI4NCA1NzggMzAwIFE1NjYgMzE4IDU1MiAzMzAgUTUzOCAzNDAgNTI4IDMzMCBRNTE4IDMxOCA1MTYgMzAyIFE1MTAgMjg0IDQ5OCAyNzIgUTQ4NCAyNTggNDc2IDI0MCBRNDY2IDIyMCA0NjQgMjAwIFE0NjIgMTc4IDQ3MCAxNjAgWiIvPgogICAgPHBhdGggZD0iTTYyOCAyODggUTYzOCAyNzggNjQ2IDI4OCBRNjUwIDMwMiA2NDIgMzE2IFE2MzQgMzI2IDYyNiAzMTggUTYyMCAzMDQgNjI4IDI4OCBaIi8+CiAgICA8IS0tIEFzaWEgKFNpYmVyaWEg4oaSIENoaW5hIOKGkiBJbmRpYSDihpIgU0UgQXNpYSDihpIgSmFwYW4pIC0tPgogICAgPHBhdGggZD0iTTU2NiA2MCBRNjAwIDQ0IDY0OCA0OCBMNzEyIDQ0IFE3NjggNDAgODIwIDUyIEw4NzYgNjIgUTkxMiA3MiA5MTggOTQgUTkyMiAxMTYgOTA0IDEyOCBRODg4IDE0MCA4NjggMTM4IFE4NTIgMTQ4IDgzOCAxNjAgUTgyNiAxNzYgODEwIDE4NCBRNzk2IDE5MiA3ODQgMjA0IFE3NzYgMjIwIDc2NCAyMjggUTc1MCAyMzQgNzQyIDIyMiBRNzM2IDIwOCA3MjYgMTk4IFE3MTggMjEwIDcxNCAyMjYgUTcwOCAyNDQgNjk4IDI0MCBRNjg4IDIzMiA2ODYgMjE0IFE2ODIgMTk0IDY3MiAxODAgUTY1OCAxNjggNjQwIDE2NCBRNjIwIDE2MiA2MDQgMTUyIFE1ODggMTQ0IDU4MCAxMjggUTU3MCAxMTAgNTcwIDkyIFE1NjYgNzYgNTY2IDYwIFoiLz4KICAgIDwhLS0gSmFwYW4gLS0+CiAgICA8cGF0aCBkPSJNODgwIDEyOCBRODkwIDExOCA4OTggMTI2IFE5MDQgMTM2IDg5NiAxNDggUTg4OCAxNjAgODc4IDE2NiBRODcwIDE2MiA4NzIgMTUwIFE4NzYgMTM4IDg4MCAxMjggWiIvPgogICAgPCEtLSBJbmRvbmVzaWEgLyBQaGlsaXBwaW5lcyBkb3RzIC0tPgogICAgPHBhdGggZD0iTTc3MiAyNDQgUTc4NiAyMzggNzk4IDI0NiBRODA2IDI1NCA3OTYgMjYwIFE3ODIgMjY0IDc3MiAyNTYgWiIvPgogICAgPHBhdGggZD0iTTgxNiAyNDYgUTgyOCAyNDAgODM4IDI0OCBRODQ0IDI1NiA4MzQgMjYyIFE4MjIgMjY0IDgxNCAyNTYgWiIvPgogICAgPHBhdGggZD0iTTg1MiAyMzIgUTg2MiAyMjYgODcwIDIzNCBRODc0IDI0MiA4NjYgMjQ4IFE4NTYgMjUwIDg1MCAyNDIgWiIvPgogICAgPCEtLSBBdXN0cmFsaWEgKyBOWiAtLT4KICAgIDxwYXRoIGQ9Ik04MTIgMjkyIFE4MzQgMjc4IDg2MiAyODIgUTg5MiAyODYgOTA4IDMwMiBROTIwIDMxOCA5MTIgMzM2IFE5MDIgMzU0IDg4MCAzNTggUTg1NiAzNjIgODM2IDM1MiBRODE4IDM0MiA4MTAgMzI0IFE4MDQgMzA2IDgxMiAyOTIgWiIvPgogICAgPHBhdGggZD0iTTkyOCAzNjAgUTkzOCAzNTIgOTQ2IDM2MCBROTUwIDM3MCA5NDIgMzgwIFE5MzIgMzg4IDkyNiAzNzggUTkyMiAzNjggOTI4IDM2MCBaIi8+CiAgPC9nPgogIDwhLS0gZXF1YXRvciBoaW50IC0tPgogIDxsaW5lIHgxPSIwIiB5MT0iMjUwIiB4Mj0iMTAwMCIgeTI9IjI1MCIgc3Ryb2tlPSIjYmNkOWU4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWRhc2hhcnJheT0iNCA4Ii8+Cjwvc3ZnPgo=" alt="World map of your trips">${dots}</div></div>
+      ${stacks ? `<div class="memory-strip">${stacks}</div>` : `<div class="log-entry">No trips yet — book one from ✈ Trips, and your memories collect here.</div>`}`;
+    return foldSection("pp-map", "🗺️", "Where you've been", inner, { open: true, badge: `${dests.length} places` });
+  }
+
   function renderPassport() {
     const p = humanSeatViewing();
     const s = scorePlayer(p);
     return `
-      <section class="card-panel">
-        <div class="screen-title"><div><div class="eyebrow">Passport</div><h1>The life you are building.</h1><p>Score from claimed experiences, fulfilled goals, and personal milestones. ${s.pendingRisk ? `You have <strong>−${s.pendingRisk} LP at risk</strong> from goals you still need to fulfill before Year 3.` : "All your kept goals are fulfilled."}</p></div><span class="badge good">${s.total} LP</span></div>
-        <div class="bucket-card">
+      <div class="passport-bar"><span class="eyebrow">Passport</span><strong>Your story so far.</strong><span class="badge good">${s.total} LP${s.pendingRisk ? ` · −${s.pendingRisk} at risk` : ""}</span></div>
+      ${renderTravelMap()}
+      ${foldSection("pp-milestones", "🎯", "Personal milestones", `<div class="bucket-card">
           <h3>${html(personalBoardById(p.personalBoardId).name)}</h3><p>${html(personalBoardById(p.personalBoardId).style)}</p>
           ${milestonesFor(p).map((m) => `<div class="milestone ${m.complete ? "complete" : ""}"><span>${m.complete ? "✓" : "○"}</span><div>${html(m.text)} <strong>${m.lp} LP</strong></div></div>`).join("")}
-        </div>
-      </section>
+        </div>`)}
       ${foldSection("pp-badges", "🎖️", "Travel Badges", `<div class="badge-grid">${TRAVEL_BADGES.map((b) => { const got = !!meta.badges[b.id]; return `<div class="travel-badge ${got ? "got" : "locked"}"><span class="travel-badge-ic">${got ? b.emoji : "🔒"}</span><div><strong>${html(b.name)}</strong><span>${html(b.desc)}</span></div></div>`; }).join("")}</div>`, { badge: `${badgesEarned()}/${TRAVEL_BADGES.length}` })}
       ${foldSection("pp-exp", "🎫", "Experiences claimed", `<div class="experience-grid">${claimedExps(p).map((e) => `<article class="experience-card done"><div class="experience-city">${e.band} · ${e.lp} LP</div><h3>${html(e.name)}</h3><p>${e.tags.map(html).join(" · ")}</p></article>`).join("") || `<div class="log-entry">No experiences claimed yet.</div>`}</div>`, { badge: `${claimedExps(p).length}` })}`;
   }
@@ -4298,8 +4414,11 @@ window.PP_DATA = {
     return `
       <section class="card-panel paper result-panel">
         <div class="eyebrow">Your journey</div>
-        <h1>${state.players.length <= 1 ? "The life you built" : html(result.ranked[0].player.name) + " wins"}</h1>
-        <p>${state.players.length <= 1 ? "Every trip you took, turned from ordinary bills into points." : "Different jobs, different dreams, one points game."}</p>
+        ${(() => { const hp = result.ranked.find((r) => r.player.isHuman); const p0 = hp && hp.player; const g = p0 && dreamGoal(p0); const lived = g && p0.goalsDone.includes(g.id);
+          if (state.players.length > 1) return `<h1>${html(result.ranked[0].player.name)} wins</h1><p>Different jobs, different dreams, one points game.</p>`;
+          if (g && lived) return `<h1>${destOf(g).emoji} You lived your dream.</h1><p>${html(g.name)} — paid with points, not cash.</p>`;
+          if (g) { const dp = dreamProgress(p0); return `<h1>The dream slipped away…</h1><p>${destOf(g).emoji} ${html(g.name)} was ${html(dp ? dp.need : "out of reach")} — next life, book it first.</p>`; }
+          return `<h1>The life you built</h1><p>Every trip you took, turned from ordinary bills into points.</p>`; })()}
         <div class="results-table">
           ${result.ranked.map((r, i) => `
             <div class="result-row ${r.player.isHuman ? "you" : ""}">
@@ -4489,6 +4608,7 @@ window.PP_DATA = {
     else if (a === "replay-intro") { state.introOpen = true; save(); render(); }
     else if (a === "pick-character") pickCharacter(d.char);
     else if (a === "toggle-ticket") toggleTicketKeep(d.ticket);
+    else if (a === "set-dream") { if ((state.ticketSelection || []).includes(d.ticket)) { state.dreamSelection = d.ticket; save(); render(); } }
     else if (a === "confirm-tickets") confirmTickets();
     else if (a === "toggle-drawgoal") toggleDrawGoal(d.ticket);
     else if (a === "commit-drawgoals") { if ((state.drawSelection || []).length) humanAct({ type: "drawgoals", keep: state.drawSelection }); }
