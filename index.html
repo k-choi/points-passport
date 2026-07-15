@@ -707,6 +707,42 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .more-menu .dock-tab { flex-direction:column; gap:2px; padding:6px 2px; font-size:10.5px; }
 }
 
+/* ===== Trip experience: Uber → boarding → arrival → shareable postcard ===== */
+.trip-backdrop { background:rgba(7,20,30,.78); }
+.trip-modal { position:relative; width:min(400px, 100%); border-radius:26px; padding:20px 18px 18px; background:linear-gradient(180deg, #0f5f78, #0d3b52); border:1px solid rgba(255,255,255,.14); box-shadow:0 30px 90px rgba(0,0,0,.5); color:#fff; overflow:hidden; }
+.trip-modal .rules-close-button { background:rgba(255,255,255,.16); color:#fff; border-color:rgba(255,255,255,.2); }
+.trip-progress { display:flex; gap:6px; justify-content:center; margin:2px 0 16px; }
+.trip-progress span { width:26px; height:4px; border-radius:99px; background:rgba(255,255,255,.25); }
+.trip-progress span.on { background:var(--sun); }
+.trip-screen { display:flex; flex-direction:column; gap:14px; min-height:280px; justify-content:center; }
+.trip-cta { width:100%; }
+
+/* phone notification cards */
+.trip-note { border-radius:18px; padding:16px 16px; background:rgba(255,255,255,.96); color:var(--ink); box-shadow:0 12px 30px rgba(0,0,0,.3); }
+.trip-note-app { font-family:var(--font-mono); font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--sea-deep); font-weight:700; margin-bottom:6px; }
+.trip-note-title { font-size:19px; font-weight:800; line-height:1.15; }
+.trip-note-body { margin-top:5px; color:#40616e; font-size:14px; line-height:1.4; }
+.trip-note.uber .trip-note-app { color:#111; }
+
+/* arrival screen */
+.trip-arrival { text-align:center; padding:6px 4px; }
+.trip-arrival-emoji { font-size:74px; line-height:1; margin-bottom:8px; }
+.trip-arrival .eyebrow { color:var(--sun); }
+.trip-arrival h2 { margin:6px 0 12px; font-size:30px; }
+.trip-arrival-meta { display:flex; justify-content:center; gap:18px; font-family:var(--font-mono); font-size:12.5px; color:rgba(255,255,255,.85); }
+
+/* postcard */
+.trip-postcard { background:#fff; border-radius:14px; padding:10px; box-shadow:0 14px 34px rgba(0,0,0,.3); }
+.trip-postcard-photo { aspect-ratio:1/1; border-radius:10px; background:linear-gradient(160deg, #bfe6f5, #eef7fb); display:grid; place-items:center; overflow:hidden; }
+.trip-postcard-photo img { width:100%; height:100%; object-fit:cover; }
+.trip-postcard-cap { display:flex; align-items:center; gap:12px; padding:12px 8px 6px; color:var(--ink); }
+.trip-stamp { width:44px; height:44px; border-radius:10px; background:linear-gradient(135deg, var(--sun), #f6cf6a); display:grid; place-items:center; font-size:24px; flex:0 0 auto; }
+.trip-postcard-cap strong { display:block; font-size:16px; }
+.trip-postcard-cap span { display:block; font-family:var(--font-mono); font-size:11px; color:var(--muted); margin-top:2px; }
+.trip-share-row { display:flex; gap:10px; }
+.trip-share-row .primary-button, .trip-share-row .secondary-button { flex:1; }
+.trip-modal .ghost-button { color:#fff; border-color:rgba(255,255,255,.35); background:rgba(255,255,255,.08); }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -2065,7 +2101,7 @@ window.PP_DATA = {
   function costsText(costs) { return (costs || []).map(costOptionText).join("  or  "); }
 
   // ----- Player / account model ------------------------------------------
-  function makeAccount(id, year) { return { id, age: 1, status: "open", spendProgress: 0, bonusEarned: false, openedYear: year || 1 }; }
+  function makeAccount(id, year) { return { id, age: 1, status: "open", spendProgress: 0, bonusEarned: false, openedYear: year || 1, retainedYears: [] }; }
 
   function makePlayer(seat, isHuman, archetypeId) {
     const profile = strategy(archetypeId);
@@ -2176,6 +2212,20 @@ window.PP_DATA = {
     const ev = currentEvent();
     if (ev.premiumFeeBump && fee >= 250) fee += ev.premiumFeeBump;
     return fee;
+  }
+  function retentionOffer(account, c) {
+    const fee = c ? cardFee(c) : 0;
+    if (!account || !c || account.status !== "open" || !fee) return null;
+    if ((account.retainedYears || []).includes(state.year)) return null;
+    const pointKey = POINTS.includes(c.focus) ? c.focus : "flexible";
+    return {
+      cash: fee >= 250 ? 100 : 50,
+      points: fee >= 250 ? 12000 : 7000,
+      pointKey
+    };
+  }
+  function retentionOfferText(offer) {
+    return offer ? `${fmtCash(offer.cash)} credit + ${fmtPts(offer.points)} ${pointLabel(offer.pointKey)}` : "No retention offer";
   }
   function bestCardForCategory(player, catId) {
     let best = openAccts(player)[0];
@@ -2385,7 +2435,7 @@ window.PP_DATA = {
       cardMarket: [],
       goalDeck: [],
       eventId: events[0].id,
-      playerSetup: { totalPlayers: 4, humanPlayers: 1, years: DEFAULT_YEARS },
+      playerSetup: { totalPlayers: 1, humanPlayers: 1, years: DEFAULT_YEARS },
       log: ["Welcome. Set the table, then start the game."],
       activity: [],
       passPending: false,
@@ -2401,6 +2451,7 @@ window.PP_DATA = {
       statusOpen: false,
       showHelp: false,
       moreOpen: false,
+      trip: null,
       simulationResults: null,
       result: null
     };
@@ -2465,7 +2516,7 @@ window.PP_DATA = {
 
   // ----- Turn engine ------------------------------------------------------
   function startGame() {
-    const total = clamp(Number(state.playerSetup.totalPlayers) || 4, 2, 5);
+    const total = clamp(Number(state.playerSetup.totalPlayers) || 1, 1, 5);
     const humans = clamp(Number(state.playerSetup.humanPlayers) || 1, 1, total);
     const years = clamp(Number(state.playerSetup.years) || DEFAULT_YEARS, 2, 3);
     const fresh = defaultState();
@@ -2617,6 +2668,7 @@ window.PP_DATA = {
         if (priced.flexible) player.flexClaims += 1;
       }
       player.goalsDone.push(goal.id);
+      if (player.isHuman) startTrip(goal.id); // live the trip: Uber → boarding → arrival → postcard
       player.lastAction = `Fulfilled "${goal.name}" (+${goal.lp} LP)`;
       logActor(player, `${player.name} fulfilled a bucket list goal: ${goal.name} (+${goal.lp} LP).`);
     } else if (action.type === "account") {
@@ -2642,7 +2694,15 @@ window.PP_DATA = {
     const acc = player.wallet.find((a) => a.id === cardId);
     const c = card(cardId);
     if (!acc || !c || acc.status === "closed") return;
-    if (op === "downgrade") {
+    if (op === "retention") {
+      const offer = retentionOffer(acc, c);
+      if (!offer) return;
+      acc.retainedYears = [...(acc.retainedYears || []), state.year];
+      addRes(player, { cash: offer.cash, [offer.pointKey]: offer.points });
+      player.accountMoves += 1;
+      player.lastAction = `Accepted ${c.name} retention offer`;
+      logActor(player, `${player.name} kept ${c.name}: ${retentionOfferText(offer)}.`);
+    } else if (op === "downgrade") {
       acc.status = "downgraded";
       player.accountMoves += 1;
       player.lastAction = `Downgraded ${c.name}`;
@@ -2940,6 +3000,7 @@ window.PP_DATA = {
         ${state.rulesOverlay && state.rulesOverlay.open ? renderRulesOverlay() : ""}
         ${state.achievementsOpen ? renderAchievementsOverlay() : ""}
         ${state.onboarding && state.onboarding.open ? renderOnboardingOverlay() : ""}
+        ${state.trip && state.trip.open ? renderTripOverlay() : ""}
       `;
     } catch (err) {
       app.innerHTML = `
@@ -3268,14 +3329,9 @@ window.PP_DATA = {
     ["draft", "▣", "Cards", "action"],
     ["spend", "◫", "Pay Bills", "action"],
     ["transfer", "⇄", "Transfer", "action"],
-    ["goals", "◎", "Goals", "action"]
+    ["goals", "◎", "Goals", "action"],
+    ["passport", "★", "Passport", "view"]
   ];
-  const MORE_TABS = [
-    ["players", "♟", "Players"],
-    ["passport", "★", "Passport"],
-    ["simulation", "％", "Sim"]
-  ];
-  const MORE_SCREENS = MORE_TABS.map((t) => t[0]);
   // "Only show usable": an action tab is live only when doing it now makes sense.
   function actionUsable(screen) {
     const p = humanSeatViewing();
@@ -3284,6 +3340,118 @@ window.PP_DATA = {
     if (screen === "goals") return (p.ticketIds || []).length > 0;
     return true;
   }
+  // ---- Trip experience: when you fulfill a bucket-list goal, "take the trip" — an Uber
+  // notification, flight boarding, arrival screen, then a personal postcard you can share.
+  const TRIP_DESTS = {
+    "tokyo-first": { city: "Tokyo", emoji: "🗼", flight: "PP 808" },
+    "kyoto-hyatt": { city: "Kyoto", emoji: "⛩️", flight: "PP 808" },
+    "maldives-villa": { city: "the Maldives", emoji: "🏝️", flight: "PP 214" },
+    "singapore-suites": { city: "Singapore", emoji: "🌆", flight: "PP 500" },
+    "paris-menu": { city: "Paris", emoji: "🥐", flight: "PP 118" },
+    "tokyo-omakase": { city: "Tokyo", emoji: "🍣", flight: "PP 808" },
+    "kenya-safari": { city: "Kenya", emoji: "🦁", flight: "PP 733" },
+    "iceland-lights": { city: "Iceland", emoji: "🌌", flight: "PP 350" },
+    "ibiza-club": { city: "Ibiza", emoji: "🎧", flight: "PP 262" },
+    "broadway-night": { city: "New York", emoji: "🗽", flight: "PP 101" },
+    "napa-weekend": { city: "Napa Valley", emoji: "🍷", flight: "PP 077" },
+    "amalfi-hotel": { city: "the Amalfi Coast", emoji: "🌊", flight: "PP 445" },
+    "hawaii-anniversary": { city: "Hawaii", emoji: "🌺", flight: "PP 671" },
+    "world-food-tour": { city: "the world", emoji: "🌍", flight: "PP 001" },
+    "aspen-ski": { city: "Aspen", emoji: "🎿", flight: "PP 970" },
+    "patagonia-trek": { city: "Patagonia", emoji: "🏔️", flight: "PP 561" }
+  };
+  function destOf(goal) {
+    const d = TRIP_DESTS[goal && goal.id];
+    if (d) return { flight: "PP 900", ...d };
+    const city = ((goal && goal.name) || "your destination").replace(/^(Fly (First Class )?to |Visit |A |The )/i, "");
+    return { city, emoji: "✈️", flight: "PP 900" };
+  }
+  function soloPlayer() { return state.players.find((p) => p.isHuman) || state.players[0] || null; }
+  const TRIP_STEPS = 4;
+  function startTrip(goalId) { state.trip = { open: true, step: 0, goalId }; }
+  function tripNav(delta) {
+    if (!state.trip) return;
+    const next = state.trip.step + delta;
+    if (next < 0) return;
+    if (next >= TRIP_STEPS) { state.trip = null; save(); render(); return; }
+    state.trip.step = next; save(); render();
+  }
+  function renderTripOverlay() {
+    const t = state.trip; const goal = ticket(t.goalId) || {}; const d = destOf(goal);
+    const name = (soloPlayer() && soloPlayer().name) || "You";
+    const gate = 1 + ((goal.id || "x").length % 24);
+    const arr = new Date(Date.now() + (3 + ((goal.id || "x").length % 8)) * 3600 * 1000);
+    const timeStr = arr.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const screens = [
+      `<div class="trip-note uber">
+         <div class="trip-note-app">🚗 Uber · now</div>
+         <div class="trip-note-title">Your ride has arrived</div>
+         <div class="trip-note-body">Black car · 6 min to the airport. Your driver is heading to Departures.</div>
+       </div>
+       <button class="primary-button trip-cta" data-action="trip-next">Head to the airport →</button>`,
+      `<div class="trip-note board">
+         <div class="trip-note-app">✈ Points Passport Air · now</div>
+         <div class="trip-note-title">Flight ${d.flight} is boarding</div>
+         <div class="trip-note-body">Gate ${gate} · Now boarding to ${html(d.city)}. Have your boarding pass ready.</div>
+       </div>
+       <button class="primary-button trip-cta" data-action="trip-next">Board the flight →</button>`,
+      `<div class="trip-arrival">
+         <div class="trip-arrival-emoji">${d.emoji}</div>
+         <div class="eyebrow">Now arriving</div>
+         <h2>Welcome to ${html(d.city)}</h2>
+         <div class="trip-arrival-meta"><span>Flight ${d.flight}</span><span>Local time ${timeStr}</span></div>
+       </div>
+       <button class="primary-button trip-cta" data-action="trip-next">Share the moment →</button>`,
+      `<div class="trip-postcard">
+         <div class="trip-postcard-photo">${meta.playerPhoto ? `<img src="${meta.playerPhoto}" alt="you">` : `<button class="ghost-button" data-action="trip-photo">＋ Add your photo</button>`}</div>
+         <div class="trip-postcard-cap"><div class="trip-stamp">${d.emoji}</div><div><strong>${html(name)} in ${html(d.city)}</strong><span>#PointsPassport</span></div></div>
+       </div>
+       ${meta.playerPhoto ? `<button class="ghost-button compact" data-action="trip-photo">Change photo</button>` : ""}
+       <div class="trip-share-row">
+         <button class="secondary-button" data-action="trip-close">Done</button>
+         <button class="primary-button" data-action="trip-share">📸 Share my trip</button>
+       </div>`
+    ];
+    return `
+      <div class="rules-backdrop trip-backdrop">
+        <section class="trip-modal" role="dialog" aria-modal="true">
+          <button class="rules-close-button" data-action="trip-close">&times;</button>
+          <div class="trip-progress">${screens.map((_, i) => `<span class="${i === t.step ? "on" : ""}"></span>`).join("")}</div>
+          <div class="trip-screen">${screens[t.step]}</div>
+          <input type="file" accept="image/*" data-action="trip-photo-input" class="trip-file" hidden>
+        </section>
+      </div>`;
+  }
+  // Build a square shareable image and open the device share sheet (→ Instagram etc.) or download.
+  async function shareTrip() {
+    if (!state.trip) return;
+    const goal = ticket(state.trip.goalId) || {}; const d = destOf(goal);
+    const name = (soloPlayer() && soloPlayer().name) || "You";
+    const S = 1080; const c = document.createElement("canvas"); c.width = S; c.height = S; const ctx = c.getContext("2d");
+    const g = ctx.createLinearGradient(0, 0, 0, S); g.addColorStop(0, "#0fb1c2"); g.addColorStop(1, "#0d3b52"); ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    if (meta.playerPhoto) {
+      try {
+        const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = meta.playerPhoto; });
+        const r = 300, cx = S / 2, cy = 430; ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.clip();
+        const s = Math.max((2 * r) / img.width, (2 * r) / img.height); ctx.drawImage(img, cx - (img.width * s) / 2, cy - (img.height * s) / 2, img.width * s, img.height * s); ctx.restore();
+        ctx.lineWidth = 10; ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
+      } catch (e) { /* no photo */ }
+    }
+    ctx.textAlign = "center"; ctx.fillStyle = "#ffffff";
+    ctx.font = "120px sans-serif"; if (!meta.playerPhoto) ctx.fillText(d.emoji, S / 2, 470);
+    ctx.font = "600 46px ui-sans-serif, system-ui, sans-serif"; ctx.fillText(`${name} in`, S / 2, 820);
+    ctx.font = "800 104px ui-sans-serif, system-ui, sans-serif"; ctx.fillText(d.city, S / 2, 920);
+    ctx.font = "40px ui-monospace, monospace"; ctx.fillStyle = "rgba(255,255,255,.85)"; ctx.fillText("#PointsPassport", S / 2, 1000);
+    const blob = await new Promise((res) => c.toBlob(res, "image/png"));
+    const file = new File([blob], `trip-${d.city}.png`, { type: "image/png" });
+    const text = `Just landed in ${d.city}! ✈️ #PointsPassport`;
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: `My trip to ${d.city}`, text }); return; }
+    } catch (e) { /* fall through to download */ }
+    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    notify("Trip image saved", "Post it to Instagram to share your journey.");
+  }
+
   function renderTurnPanel() {
     const p = activePlayer();
     const youTurn = isHumanTurn();
@@ -3317,14 +3485,11 @@ window.PP_DATA = {
       const enabled = kind === "view" ? true : (canAct && actionUsable(screen));
       return `<button class="dock-tab ${state.screen === screen ? "active" : ""}" ${enabled ? "" : "disabled"} data-action="screen" data-screen="${screen}"><span class="dock-tab-ic">${icon}</span><span class="dock-tab-lbl">${html(label)}</span></button>`;
     };
-    const moreActive = state.moreOpen || MORE_SCREENS.includes(state.screen);
     return `
       <nav class="action-dock ${youTurn ? "your-turn" : ""}" aria-label="Menu and actions">
-        ${state.moreOpen ? `<div class="more-menu">${MORE_TABS.map(([s, i, l]) => `<button class="dock-tab ${state.screen === s ? "active" : ""}" data-action="screen" data-screen="${s}"><span class="dock-tab-ic">${i}</span><span class="dock-tab-lbl">${html(l)}</span></button>`).join("")}</div>` : ""}
         <div class="action-dock-inner">
           <div class="dock-tabs">
             ${DOCK_TABS.map(tabBtn).join("")}
-            <button class="dock-tab ${moreActive ? "active" : ""}" data-action="toggle-more"><span class="dock-tab-ic">⋯</span><span class="dock-tab-lbl">More</span></button>
           </div>
           <div class="dock-end-wrap">
             <span class="dock-status">${youTurn ? `<strong>${left}</strong> action${left === 1 ? "" : "s"} left` : "Rivals playing…"}</span>
@@ -3373,6 +3538,7 @@ window.PP_DATA = {
   }
 
   function renderPlayerStrip() {
+    if (state.players.length <= 1) return ""; // solo: no rivals to show
     const active = activePlayer();
     const sorted = state.players.map((p) => ({ p, s: scorePlayer(p) }));
     return `
@@ -3620,7 +3786,7 @@ window.PP_DATA = {
     return `
       <section class="card-panel">
         <div class="screen-title">
-          <div><div class="eyebrow">Account action</div><h1>Manage cards</h1><p>A single account move uses your turn. Annual fees are charged at the end of each Year.</p></div>
+          <div><div class="eyebrow">Account action</div><h1>Manage cards</h1><p>A single account move uses your turn. Fee cards may offer one retention bonus per Year before you downgrade or close.</p></div>
           <span class="badge ${p.score >= 740 ? "good" : p.score >= 670 ? "warn" : "bad"}">Credit Score ${Math.round(p.score)} · ${scoreBand(p.score)}</span>
         </div>
         <div class="account-list">${p.wallet.map((a) => renderAccountRow(a, canAct, p)).join("")}</div>
@@ -3631,14 +3797,17 @@ window.PP_DATA = {
     const c = card(account.id);
     const closed = account.status === "closed";
     const hit = account.age <= 1 ? 25 : 10;
+    const offer = retentionOffer(account, c);
+    const retained = (account.retainedYears || []).includes(state.year);
     return `
       <article class="account-row ${closed ? "closed" : ""}">
-        <div><strong>${html(c.name)}</strong><p>${closed ? "Closed account" : html(c.perk)}</p></div>
+        <div><strong>${html(c.name)}</strong><p>${closed ? "Closed account" : `${html(c.perk)} ${offer ? `Retention: ${html(retentionOfferText(offer))}.` : retained ? "Retention already used this Year." : "No fee, no retention needed."}`}</p></div>
         <div class="account-stats">
           <span class="badge ${cardFee(c) ? "warn" : "good"}">${cardFee(c) ? fmtCash(cardFee(c)) + "/yr" : "No fee"}</span>
           <span class="badge">Age ${account.age}</span><span class="badge">${account.status}</span>
         </div>
         <div class="account-actions">
+          <button class="primary-button compact" ${canAct && offer ? "" : "disabled"} data-action="account" data-card="${account.id}" data-op="retention">Ask retention</button>
           <button class="secondary-button compact" ${canAct && !closed && account.status !== "downgraded" ? "" : "disabled"} data-action="account" data-card="${account.id}" data-op="downgrade">Downgrade</button>
           <button class="danger-button compact" ${canAct && !closed ? "" : "disabled"} data-action="account" data-card="${account.id}" data-op="close">Close −${hit}</button>
         </div>
@@ -3667,9 +3836,9 @@ window.PP_DATA = {
     if (!result) return `<section class="card-panel"><h1>No game finished yet.</h1><button class="primary-button" data-action="screen" data-screen="setup">Start a game</button></section>`;
     return `
       <section class="card-panel paper result-panel">
-        <div class="eyebrow">Final Score</div>
-        <h1>${html(result.ranked[0].player.name)} wins</h1>
-        <p>Different jobs, different dreams, one points game. This is who built the richest life with smarter card, timing, and transfer decisions.</p>
+        <div class="eyebrow">Your journey</div>
+        <h1>${state.players.length <= 1 ? "The life you built" : html(result.ranked[0].player.name) + " wins"}</h1>
+        <p>${state.players.length <= 1 ? "Every trip you took, turned from ordinary bills into points." : "Different jobs, different dreams, one points game."}</p>
         <div class="results-table">
           ${result.ranked.map((r, i) => `
             <div class="result-row ${r.player.isHuman ? "you" : ""}">
@@ -3850,7 +4019,10 @@ window.PP_DATA = {
     else if (a === "replay-tutorial") startTutorial();
     else if (a === "toggle-status") { state.statusOpen = !state.statusOpen; save(); render(); }
     else if (a === "toggle-help") { state.showHelp = !state.showHelp; save(); render(); }
-    else if (a === "toggle-more") { state.moreOpen = !state.moreOpen; save(); render(); }
+    else if (a === "trip-next") tripNav(1);
+    else if (a === "trip-close") { state.trip = null; save(); render(); }
+    else if (a === "trip-photo") { const inp = document.querySelector(".trip-file"); if (inp) inp.click(); }
+    else if (a === "trip-share") shareTrip();
     else if (a === "open-achievements") { state.achievementsOpen = true; save(); render(); }
     else if (a === "close-achievements") { state.achievementsOpen = false; save(); render(); }
     else if (a === "rules-topic") openRules(d.topic);
@@ -3881,7 +4053,13 @@ window.PP_DATA = {
     const spend = event.target.closest && event.target.closest("[data-action='assign-spend']");
     if (spend) { setAssignment(spend.dataset.category, spend.value); return; }
     const setup = event.target.closest && event.target.closest("[data-action='setup-select']");
-    if (setup) setPlayerSetup(setup.dataset.setupKey, setup.value);
+    if (setup) { setPlayerSetup(setup.dataset.setupKey, setup.value); return; }
+    const photo = event.target.closest && event.target.closest("[data-action='trip-photo-input']");
+    if (photo && photo.files && photo.files[0]) {
+      const reader = new FileReader();
+      reader.onload = () => { meta.playerPhoto = String(reader.result); saveMeta(); render(); };
+      reader.readAsDataURL(photo.files[0]);
+    }
   });
 
   render();
