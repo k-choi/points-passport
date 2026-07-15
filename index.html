@@ -297,6 +297,15 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .paper .setup-control strong { color:#9a6a15; }
 .seat-list { display:grid; gap:8px; }
 .sim-table td span { color:var(--muted); font-size:12px; line-height:1.3; }
+/* cap the results so the Balance Lab page never grows past one screen; the table
+   scrolls inside its own box (both axes) instead. */
+.sim-scroll { max-height:36vh; overflow:auto; margin-top:10px; border:1px solid var(--line); border-radius:10px; }
+.sim-scroll .sim-table { margin:0; }
+/* compact Balance Lab controls so the results table stays above the fold */
+.sim-controls { display:flex; align-items:center; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.sim-controls .setup-control { flex:0 0 auto; flex-direction:row; align-items:center; gap:8px; padding:8px 12px; }
+.sim-mode { color:var(--muted); font-size:13px; }
+.sim-mode strong { color:var(--sun-ink); }
 .opponent-grid { display:grid; gap:10px; }
 .opponent-card { display:grid; gap:8px; padding:12px; border-radius:8px; background:rgba(13,59,82,.075); border:1px solid rgba(13,59,82,.13); }
 .opponent-card.you { border-color:rgba(240,193,95,.44); background:linear-gradient(180deg, rgba(240,193,95,.14), rgba(13,59,82,.06)); }
@@ -549,6 +558,8 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .character-locked { text-align:center; font-weight:800; color:var(--muted); background:rgba(13,59,82,.05); border:1px dashed rgba(13,59,82,.22); border-radius:12px; padding:12px; margin-top:auto; }
 .result-unlock { margin:12px 0 4px; padding:10px 12px; border-radius:12px; background:rgba(240,193,95,.16); border:1px solid rgba(169,120,44,.5); color:#7a5312; font-weight:800; }
 .guide-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.guide-actions .compact { flex:1 1 auto; }
+.fold-note { color:var(--muted); margin:0 0 10px; line-height:1.4; }
 
 /* ============================================================
    MOBILE LAYER (phones, <=600px): fit one card per screen and
@@ -564,7 +575,7 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .eyebrow { font-size:11px; }
 
   /* card grids -> horizontal swipe carousels; peek the next card as an affordance */
-  .character-grid, .draft-grid, .experience-grid, .partner-grid, .player-strip, .account-list, .wallet-row {
+  .character-grid, .draft-grid, .experience-grid, .partner-grid, .player-strip, .account-list, .wallet-row, .vision-grid {
     display:flex; grid-template-columns:none; flex-wrap:nowrap; align-items:stretch;
     gap:12px; margin:4px 0 8px; padding:2px 2px 14px;
     overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
@@ -574,10 +585,13 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .character-grid::-webkit-scrollbar, .draft-grid::-webkit-scrollbar,
   .experience-grid::-webkit-scrollbar, .partner-grid::-webkit-scrollbar,
   .player-strip::-webkit-scrollbar, .account-list::-webkit-scrollbar,
-  .wallet-row::-webkit-scrollbar { display:none; }
-  .character-card, .draft-grid > *, .experience-grid > *, .partner-grid > *, .player-strip > *, .account-list > *, .wallet-row > * {
+  .wallet-row::-webkit-scrollbar, .vision-grid::-webkit-scrollbar { display:none; }
+  .character-card, .draft-grid > *, .experience-grid > *, .partner-grid > *, .player-strip > *, .account-list > *, .wallet-row > *, .vision-grid > * {
     flex:0 0 87%; scroll-snap-align:center;
   }
+  .vision-grid { margin-top:4px; align-items:flex-start; }
+  .vision-grid div { padding:12px 14px; }
+  .card-panel.paper h1 { margin-bottom:6px; }
 
   /* condense the character card so the whole card fits without vertical scroll */
   .character-emoji, .character-portrait { width:46px; height:46px; border-radius:12px; font-size:24px; }
@@ -3108,7 +3122,7 @@ window.PP_DATA = {
   // Carousels are horizontal scroll containers; a full innerHTML re-render resets them to
   // the left. Snapshot each one's scrollLeft before render and restore it after, keyed by
   // (class, occurrence) so the same carousel keeps its place when you tap within it.
-  const CAROUSEL_CLASSES = ["character-grid", "draft-grid", "experience-grid", "partner-grid", "player-strip", "account-list"];
+  const CAROUSEL_CLASSES = ["character-grid", "draft-grid", "experience-grid", "partner-grid", "player-strip", "account-list", "vision-grid"];
   function eachCarousel(fn) {
     if (!app.querySelectorAll) return;
     const counts = {};
@@ -4047,52 +4061,48 @@ window.PP_DATA = {
     return `
       <section class="card-panel">
         <div class="screen-title"><div><div class="eyebrow">Balance Lab</div><h1>Compare strategy strength.</h1><p>Runs full AI games on the real engine to compare archetype win rates.</p></div><button class="primary-button" data-action="run-simulation">Run 120 games</button></div>
-        <div class="setup-grid">
-          <label class="setup-control"><span>Total players</span><select data-action="setup-select" data-setup-key="totalPlayers">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${state.playerSetup.totalPlayers === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
-          <div class="setup-control"><span>Mode</span><strong>All-AI</strong></div>
+        <div class="sim-controls">
+          <label class="setup-control compact"><span>Total players</span><select data-action="setup-select" data-setup-key="totalPlayers">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${state.playerSetup.totalPlayers === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+          <span class="sim-mode">Mode · <strong>All-AI</strong></span>
         </div>
-      </section>
-      <section class="card-panel">
         <h2>Strategy win rates</h2>
+        <div class="sim-scroll">
         ${results ? `<table class="table sim-table"><thead><tr><th>Strategy</th><th>Win rate</th><th>Avg LP</th><th>High</th><th>Games</th></tr></thead><tbody>
           ${results.rows.map((row) => `<tr><td><strong>${html(row.profile.name)}</strong><br><span>${html(row.profile.focus)}</span></td><td>${Math.round(row.winRate * 100)}%</td><td>${row.avgScore.toFixed(1)}</td><td>${row.high}</td><td>${row.games}</td></tr>`).join("")}
         </tbody></table><p class="footer-note">${results.iterations} games at ${results.total} seats. Ties count as wins for all tied strategies.</p>` : `<div class="log-entry">Run the simulator to generate balance data.</div>`}
+        </div>
       </section>`;
   }
 
   function renderGuide() {
+    // Reference screen: compact header always visible; the detail folds into tap-to-open
+    // sections so the whole guide stays within one screen.
     return `
       <section class="card-panel paper">
         <div class="eyebrow">How to play</div>
         <h1>You can't afford the dream. Your points can.</h1>
-        <p>You are playing someone with a specific job, income, lifestyle, and idea of joy: an Artist chasing history, a Surgeon protecting rare time off, a Chef traveling fork-first. Over <strong>3 Years</strong>, turn ordinary bills into points and use those points on the experiences your character values most.</p>
-        <div class="guide-actions"><button class="secondary-button" data-action="replay-tutorial">▶ Replay the walkthrough</button><button class="ghost-button" data-action="open-achievements">🏆 Achievements</button></div>
-        <div class="grid-3 vision-grid">
+        <p>Turn ordinary bills into points, then spend those points on the experiences your character values most — over <strong>3 Years</strong>.</p>
+        <div class="guide-actions"><button class="secondary-button compact" data-action="replay-tutorial">▶ Replay walkthrough</button><button class="ghost-button compact" data-action="open-achievements">🏆 Achievements</button></div>
+      </section>
+      ${foldSection("guide-loop", "🎯", "The 3-step loop", `<div class="grid-3 vision-grid">
           <div><strong>1 · Earn</strong><span>Charge your fixed bills to the right cards and trigger fat welcome bonuses.</span></div>
           <div><strong>2 · Transfer</strong><span>Turn Flexible points into Travel or Dining during bonus windows.</span></div>
           <div><strong>3 · Flex</strong><span>Spend points (never cash) on dream trips and post the most enviable life.</span></div>
-        </div>
-      </section>
-      <section class="card-panel">
-        <div class="section-heading"><div><h2>Your first turn, step by step</h2><p>Each Season you get up to ${ACTIONS_PER_TURN} actions, then click "End my turn." A new season brings fresh offers.</p></div></div>
-        <div class="mini-list">
+        </div>`, { open: true })}
+      ${foldSection("guide-first", "①", "Your first turn, step by step", `<p class="fold-note">Each Season you get up to ${ACTIONS_PER_TURN} actions, then "End my turn." A new season brings fresh offers.</p><div class="mini-list">
           <div class="mini-line">1. <strong>Pick a lane</strong> — income, lifestyle, taste, and discounts shape your strategy</div>
           <div class="mini-line">2. <strong>Apply</strong> for a card whose welcome bonus matches a dream you kept</div>
           <div class="mini-line">3. <strong>Pay Bills</strong> — cash your seasonal income onto your best cards<strong>+ points</strong></div>
           <div class="mini-line">4. <strong>Transfer or Claim</strong> when you can afford something<strong>+ Life Points</strong></div>
           <div class="mini-line">5. <strong>End my turn</strong> and watch the table react<strong>then repeat</strong></div>
-        </div>
-      </section>
-      <section class="card-panel">
-        <div class="section-heading"><div><h2>The golden rules</h2></div></div>
-        <div class="mini-list">
+        </div>`)}
+      ${foldSection("guide-rules", "★", "The golden rules", `<div class="mini-list">
           <div class="mini-line">Luxury is bought with points or a signon bonus<strong>never cash</strong></div>
           <div class="mini-line">Keep ≥1 bucket-list goal; an unfulfilled one hurts<strong>disappointment</strong></div>
           <div class="mini-line">Pay your bills each Year<strong>or pay APR</strong></div>
           <div class="mini-line">Most Life Points after Year 3<strong>wins</strong></div>
         </div>
-        <div class="actions"><button class="primary-button" data-action="open-rules" data-topic="story">Read the full rules</button></div>
-      </section>`;
+        <div class="actions"><button class="primary-button" data-action="open-rules" data-topic="story">Read the full rules</button></div>`)}`;
   }
 
   function renderPassOverlay() {
