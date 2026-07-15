@@ -229,16 +229,12 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .strategy-card.selected { border-color:rgba(243,199,92,.72); background:linear-gradient(180deg, rgba(243,199,92,.19), rgba(13,59,82,.075)); box-shadow:0 0 0 2px rgba(243,199,92,.12); }
 .strategy-card-head { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
 .strategy-card h3, .partner-card h3, .experience-card h3, .spend-cube h3 { margin:0; }
-.draft-selection-panel { display:grid; grid-template-columns:minmax(180px, .9fr) minmax(240px, 1.4fr) auto; gap:14px; align-items:center; padding:14px; margin:18px 0; border-radius:8px; border:1px solid rgba(243,199,92,.28); background:linear-gradient(135deg, rgba(243,199,92,.14), rgba(53,168,255,.08)); }
-.draft-selection-panel h2 { margin:3px 0 4px; }
-.draft-selection-panel p { margin:0; color:var(--muted); line-height:1.4; }
 .selected-draft-list { display:grid; gap:8px; }
 .selected-draft-card { width:100%; display:flex; justify-content:space-between; align-items:center; gap:12px; text-align:left; padding:10px 12px; border-radius:8px; border:1px solid rgba(243,199,92,.35); background:rgba(13,59,82,.09); color:var(--text); box-shadow:none; }
 .selected-draft-card strong, .selected-draft-card small { display:block; }
 .selected-draft-card small { margin-top:3px; color:var(--muted); font-size:12px; }
 .selected-draft-card > span:last-child { color:var(--sun-ink); font-size:12px; font-weight:950; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
 .empty-selection { padding:12px; border:1px dashed rgba(13,59,82,.24); border-radius:8px; color:var(--muted); background:rgba(13,59,82,.045); }
-.draft-selection-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
 .board-credit-card { min-height:210px; }
 .spend-wallet { display:grid; grid-template-columns:minmax(160px, .7fr) 1fr; gap:14px; align-items:center; margin:16px 0; padding:14px; border-radius:8px; border:1px solid rgba(13,59,82,.13); background:rgba(13,59,82,.065); }
 .spend-wallet strong { display:block; margin-top:3px; color:var(--sun-ink); }
@@ -269,9 +265,6 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .partner-card { min-height:230px; border-width:2px; }
 .partner-card.selected { background:linear-gradient(180deg, rgba(243,199,92,.16), rgba(13,59,82,.075)); box-shadow:0 0 0 2px rgba(243,199,92,.12); }
 .partner-icon { font-size:38px; font-weight:1000; line-height:1; }
-.transfer-selection-panel { display:flex; justify-content:space-between; gap:14px; align-items:center; padding:14px; margin:18px 0; border-radius:8px; border:1px solid rgba(243,199,92,.28); background:linear-gradient(135deg, rgba(243,199,92,.14), rgba(53,168,255,.08)); }
-.transfer-selection-panel h2 { margin:3px 0 4px; }
-.transfer-selection-panel p { margin:0; color:var(--muted); line-height:1.4; }
 .experience-card { display:flex; flex-direction:column; gap:8px; min-height:210px; }
 .experience-card.done { background:rgba(89,211,125,.1); border-color:rgba(89,211,125,.4); }
 .experience-city { color:var(--gold); font-size:12px; font-weight:950; text-transform:uppercase; letter-spacing:.08em; }
@@ -351,8 +344,6 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .route-map, .route-map svg { min-height:360px; }
   .turn-guide { grid-template-columns:1fr; }
   .board-reference { grid-template-columns:1fr 1fr; }
-  .draft-selection-panel { grid-template-columns:1fr; align-items:stretch; }
-  .draft-selection-actions { justify-content:flex-start; }
   .account-guidance, .account-choice-grid { grid-template-columns:1fr; }
 }
 
@@ -366,7 +357,6 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .score-grid { grid-template-columns:1fr; }
   .setup-grid { grid-template-columns:1fr; }
   .phase-rail, .board-reference { grid-template-columns:1fr; }
-  .transfer-selection-panel { display:grid; align-items:stretch; margin:10px 0; }
   .rules-head, .rules-tip { grid-template-columns:1fr; display:grid; }
 }
 
@@ -3949,20 +3939,14 @@ window.PP_DATA = {
   function renderTransfer() {
     const p = humanSeatViewing();
     const choice = state.transferSelection;
-    const canCommit = canSpendAction() && choice && p.res.flexible >= choice.amount;
+    const canAct = canSpendAction();
     return `
       <section class="card-panel">
         <div class="screen-title">
           <div><div class="eyebrow">Transfer action</div><h1>Transfer points</h1><p>Transfer Flexible into Travel or Dining — best during a bonus window. One-way, and it uses your turn.</p></div>
           <span class="badge warn">${html(currentEvent().name)}</span>
         </div>
-        <div class="transfer-selection-panel">
-          <div><div class="eyebrow">Selected</div><h2>${choice ? `${fmtPts(choice.amount)} → ${fmtPts(playerTransferOutput(p, choice.amount, choice.target))} ${pointLabel(choice.target)}` : "No transfer selected"}</h2><p>You hold ${fmtPts(p.res.flexible)} Flexible.</p></div>
-          <div class="draft-selection-actions">
-            <button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-transfer">Confirm transfer</button>
-            <button class="ghost-button" ${choice ? "" : "disabled"} data-action="clear-transfer">Clear</button>
-          </div>
-        </div>
+        <div class="market-head"><span class="eyebrow">Tap an amount · tap again to transfer</span><span class="deck-count">You hold ${fmtPts(p.res.flexible)} Flexible</span></div>
         <div class="partner-grid">
           ${transferTargets.map((target) => {
             const mult = playerTransferMult(p, target);
@@ -3973,8 +3957,12 @@ window.PP_DATA = {
               <p>This Year's multiplier: <strong>${Math.round(mult * 100)}%</strong></p>
               <div class="actions">
                 ${[20000, 40000].map((amount) => {
+                  // Two-tap: first tap selects the amount, second (on the highlighted
+                  // button) confirms the transfer — same pattern as Apply.
                   const sel = choice && choice.target === target && choice.amount === amount;
-                  return `<button class="${sel ? "ghost-button" : "primary-button"} compact" ${p.res.flexible < amount ? "disabled" : ""} data-action="select-transfer" data-target="${target}" data-amount="${amount}">${sel ? "Unselect" : `${fmtPts(amount)} → ${fmtPts(playerTransferOutput(p, amount, target))}`}</button>`;
+                  return sel
+                    ? `<button class="primary-button compact" ${canAct ? "" : "disabled"} data-action="commit-transfer">✓ Confirm transfer</button>`
+                    : `<button class="secondary-button compact" ${p.res.flexible < amount ? "disabled" : ""} data-action="select-transfer" data-target="${target}" data-amount="${amount}">${fmtPts(amount)} → ${fmtPts(playerTransferOutput(p, amount, target))}</button>`;
                 }).join("")}
               </div>
             </article>`;
@@ -4235,13 +4223,11 @@ window.PP_DATA = {
     else if (a === "toggle-drawgoal") toggleDrawGoal(d.ticket);
     else if (a === "commit-drawgoals") { if ((state.drawSelection || []).length) humanAct({ type: "drawgoals", keep: state.drawSelection }); }
     else if (a === "select-draft") selectDraft(d.card);
-    else if (a === "clear-draft") { state.draftSelection = null; save(); render(); }
     else if (a === "commit-apply") { if (state.draftSelection && state.cardMarket.includes(state.draftSelection)) humanAct({ type: "apply", cardId: state.draftSelection }); else { notify("Offer gone", "That offer was taken. Pick another."); state.draftSelection = null; render(); } }
     else if (a === "assign-bill") { const cat = spendCategories[state.billStep || 0]; if (cat) state.spendAssignments[cat.id] = d.card; state.billStep = Math.min((state.billStep || 0) + 1, spendCategories.length); save(); render(); }
     else if (a === "bill-back") { state.billStep = Math.max(0, (state.billStep || 0) - 1); save(); render(); }
     else if (a === "commit-spend") { const p = humanSeatViewing(); humanAct({ type: "purchase", assignments: { ...autoAssignments(p), ...state.spendAssignments } }); }
     else if (a === "select-transfer") selectTransfer(d.target, Number(d.amount));
-    else if (a === "clear-transfer") { state.transferSelection = null; save(); render(); }
     else if (a === "commit-transfer") { if (state.transferSelection) humanAct({ type: "transfer", target: state.transferSelection.target, amount: state.transferSelection.amount }); }
     else if (a === "claim") humanAct({ type: "experience", expId: d.experience });
     else if (a === "fulfill") humanAct({ type: "fulfill", goalId: d.goal });
