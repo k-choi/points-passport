@@ -694,6 +694,9 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .app-shell.lean .screen-title p,
 .app-shell.lean .section-heading > div > p { display:none; }
 
+/* Single-tap start: no player-count or length choices, just a prominent Start button */
+.setup-start { font-size:16px; padding:14px 30px; margin-top:8px; }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -3078,31 +3081,12 @@ window.PP_DATA = {
   }
 
   function renderSetup() {
-    const aiCount = Math.max(0, state.playerSetup.totalPlayers - state.playerSetup.humanPlayers);
     return `
       <section class="card-panel paper setup-hero">
         <div class="eyebrow">Points Passport</div>
         <h1>Different lives. Different dreams. Same points game.</h1>
-        <p>Pick a character with a distinct seasonal income, lifestyle cost, and idea of a life well lived. A Surgeon may earn twice as much as an Artist, but the Artist gets more meaning from culture and historic places. Win by matching cards, points, and experiences to your character's values.</p>
-        <div class="setup-grid">
-          <label class="setup-control"><span>Total players</span>
-            <select data-action="setup-select" data-setup-key="totalPlayers">
-              ${[2, 3, 4, 5].map((n) => `<option value="${n}" ${state.playerSetup.totalPlayers === n ? "selected" : ""}>${n}</option>`).join("")}
-            </select>
-          </label>
-          <label class="setup-control"><span>Real players</span>
-            <select data-action="setup-select" data-setup-key="humanPlayers">
-              ${[1, 2, 3, 4, 5].filter((n) => n <= state.playerSetup.totalPlayers).map((n) => `<option value="${n}" ${state.playerSetup.humanPlayers === n ? "selected" : ""}>${n}</option>`).join("")}
-            </select>
-          </label>
-          <label class="setup-control"><span>Years (length)</span>
-            <select data-action="setup-select" data-setup-key="years">
-              ${[2, 3].map((n) => `<option value="${n}" ${(state.playerSetup.years || DEFAULT_YEARS) === n ? "selected" : ""}>${n} years · ${n * SEASONS_PER_YEAR} months</option>`).join("")}
-            </select>
-          </label>
-          <div class="setup-control"><span>AI seats</span><strong>${aiCount}</strong></div>
-          <button class="primary-button" data-action="start-game">Start game</button>
-        </div>
+        <p>Build a life of travel from credit-card points and outscore your AI rivals.</p>
+        <button class="primary-button setup-start" data-action="start-game">Start game</button>
       </section>
       <section class="grid-2">
         <div class="card-panel">
