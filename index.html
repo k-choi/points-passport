@@ -720,6 +720,30 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 /* Single-tap start: no player-count or length choices, just a prominent Start button */
 .setup-start { font-size:16px; padding:14px 30px; margin-top:8px; }
 
+/* Title hero: SHOW the loop (bills → points → trips), the cast, and the win condition */
+.loop-strip { display:flex; align-items:stretch; gap:6px; margin:14px 0 10px; }
+.loop-chip {
+  flex:1 1 0; display:flex; flex-direction:column; gap:2px; text-align:center; align-items:center;
+  background:rgba(15,177,194,.09); border:1px solid rgba(15,177,194,.3); border-radius:12px; padding:10px 6px;
+}
+.loop-chip .loop-ic { font-size:22px; line-height:1; }
+.loop-chip strong { font-size:12.5px; line-height:1.2; color:var(--ink); }
+.loop-chip span:not(.loop-ic) { font-size:10.5px; line-height:1.25; color:var(--muted); }
+.loop-arrow { align-self:center; font-weight:900; color:var(--sea-deep); font-size:16px; }
+.cast-row { display:flex; justify-content:center; gap:4px; margin:12px 0 6px; }
+.cast-face {
+  width:38px; height:38px; border-radius:50%; overflow:hidden; flex:0 0 auto;
+  background-size:500% 100%; background-position:0 0; background-color:#eaf6fb;
+  border:2px solid #fff; box-shadow:0 2px 6px rgba(11,74,110,.22);
+}
+.hero-goal { margin:4px 0 10px; font-size:13.5px; color:var(--muted); }
+@media (max-width:600px) {
+  .loop-chip { padding:8px 4px; }
+  .loop-chip strong { font-size:11px; }
+  .loop-chip span:not(.loop-ic) { font-size:9.5px; }
+  .cast-face { width:32px; height:32px; }
+}
+
 /* More menu (secondary views) + merged-screen title actions */
 .more-menu { display:flex; flex-wrap:wrap; gap:6px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); }
 .more-menu .dock-tab { flex:1 1 auto; }
@@ -3359,12 +3383,24 @@ window.PP_DATA = {
   }
 
   function renderSetup() {
+    // First-glance rule: a newcomer must see WHAT YOU DO (pay bills → points → trips),
+    // WHO you play, and HOW YOU WIN — visually, before any fold is opened.
     return `
       <section class="card-panel paper setup-hero">
         <div class="eyebrow">Points Passport</div>
-        <h1>Different lives. Different dreams. Same points game.</h1>
-        <p>Build a life of travel from credit-card points — one dream trip at a time.</p>
-        <button class="primary-button setup-start" data-action="start-game">Start game</button>
+        <h1>Pay bills with the right cards. Earn points. Travel free.</h1>
+        <div class="loop-strip" aria-label="How the game works">
+          <div class="loop-chip"><span class="loop-ic">💳</span><strong>Pay your bills</strong><span>Spend $4,000 on the right card</span></div>
+          <span class="loop-arrow">→</span>
+          <div class="loop-chip"><span class="loop-ic">✨</span><strong>+60,000 points</strong><span>Welcome bonus hits</span></div>
+          <span class="loop-arrow">→</span>
+          <div class="loop-chip"><span class="loop-ic">🗼</span><strong>First Class to Tokyo</strong><span>Paid in points, not cash</span></div>
+        </div>
+        <div class="cast-row" aria-label="Playable characters">
+          ${["lina", "priya", "marcus", "sofia", "kai", "evelyn", "nova", "ava"].map((id) => `<span class="cast-face" style="background-image:url('${AVATAR_ART[id]}')"></span>`).join("")}
+        </div>
+        <p class="hero-goal">Pick a character and live their life for 3 years — most Life Points wins.</p>
+        <button class="primary-button setup-start" data-action="start-game">Start your journey</button>
       </section>
       ${foldSection("setup-turn", "🎮", "How a turn works", `<div class="mini-list">
           <div class="mini-line">Each Season<strong>up to ${ACTIONS_PER_TURN} actions</strong></div>
