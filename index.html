@@ -366,7 +366,7 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .score-grid { grid-template-columns:1fr; }
   .setup-grid { grid-template-columns:1fr; }
   .phase-rail, .board-reference { grid-template-columns:1fr; }
-  .transfer-selection-panel { display:grid; align-items:stretch; }
+  .transfer-selection-panel { display:grid; align-items:stretch; margin:10px 0; }
   .rules-head, .rules-tip { grid-template-columns:1fr; display:grid; }
 }
 
@@ -574,7 +574,7 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .eyebrow { font-size:11px; }
 
   /* card grids -> horizontal swipe carousels; peek the next card as an affordance */
-  .character-grid, .draft-grid, .experience-grid, .partner-grid, .player-strip {
+  .character-grid, .draft-grid, .experience-grid, .partner-grid, .player-strip, .account-list, .wallet-row {
     display:flex; grid-template-columns:none; flex-wrap:nowrap; align-items:stretch;
     gap:12px; margin:4px 0 8px; padding:2px 2px 14px;
     overflow-x:auto; overflow-y:visible; -webkit-overflow-scrolling:touch;
@@ -583,8 +583,9 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   }
   .character-grid::-webkit-scrollbar, .draft-grid::-webkit-scrollbar,
   .experience-grid::-webkit-scrollbar, .partner-grid::-webkit-scrollbar,
-  .player-strip::-webkit-scrollbar { display:none; }
-  .character-card, .draft-grid > *, .experience-grid > *, .partner-grid > *, .player-strip > * {
+  .player-strip::-webkit-scrollbar, .account-list::-webkit-scrollbar,
+  .wallet-row::-webkit-scrollbar { display:none; }
+  .character-card, .draft-grid > *, .experience-grid > *, .partner-grid > *, .player-strip > *, .account-list > *, .wallet-row > * {
     flex:0 0 87%; scroll-snap-align:center;
   }
 
@@ -640,6 +641,14 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .tabbar { background:#0a1826; border-color:rgba(13,59,82,.16); }
 
   .experience-card { min-height:0; }
+  /* size carousel cards to content (not a fixed min-height) and don't stretch to the
+     tallest sibling, so screen height is stable regardless of the random deck. */
+  .experience-card, .strategy-card { min-height:0; }
+  .experience-grid, .draft-grid { align-items:flex-start; }
+  .experience-card .actions { margin-top:10px; }
+  /* tighten offer cards so the tallest (incl. a "score required" line) still fits. */
+  .strategy-card { gap:7px; padding:12px; }
+  .strategy-card .mini-line { padding-top:6px; margin-top:6px; }
   .experience-row { padding-top:12px; margin-top:12px; }
   .row-heading h2 { font-size:16px; }
   .status-card { padding:11px; }
@@ -677,7 +686,7 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .dock-end-wrap { margin-left:0; gap:4px; flex:0 0 auto; }
   .dock-status { display:none; }
   .dock-end { padding:9px 11px; font-size:12.5px; }
-  .app-shell.has-dock { padding-bottom:96px; }
+  .app-shell.has-dock { padding-bottom:80px; }
   .app-shell.has-dock ~ .toast { bottom:184px; right:10px; left:10px; width:auto; }
 }
 
@@ -829,6 +838,36 @@ body::after { content:"✈️"; position:fixed; top:6%; left:-10%; z-index:-1; f
 .fold-badge { font-family:var(--font-mono); font-size:12px; font-weight:700; color:var(--sea-deep); background:rgba(15,177,194,.12); border-radius:999px; padding:3px 10px; flex:0 0 auto; }
 .fold-body { padding:0 16px 16px; }
 .fold-section.open .fold-head { border-bottom:1px solid var(--line); }
+
+/* Pay Bills wizard: one bill at a time, pick a card, advance */
+.bill-count { display:flex; align-items:center; gap:10px; margin:6px 0 14px; font-family:var(--font-mono); font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+.bill-dots { display:flex; gap:6px; }
+.bill-dots span { width:22px; height:5px; border-radius:99px; background:rgba(13,59,82,.14); }
+.bill-dots span.now { background:var(--sea); }
+.bill-dots span.done { background:var(--sea-deep); }
+.bill-head { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+.bill-amt { font-family:var(--font-mono); font-weight:800; font-size:26px; color:var(--ink); background:rgba(15,177,194,.12); border-radius:12px; padding:10px 14px; white-space:nowrap; }
+.bill-head h2 { margin:0; font-size:19px; }
+.bill-head p { margin:3px 0 0; color:var(--muted); font-size:13px; }
+.bill-hint { font-weight:700; color:var(--sea-deep); margin-bottom:8px; }
+.bill-options { display:grid; gap:8px; }
+.bill-option { display:flex; justify-content:space-between; align-items:center; gap:12px; text-align:left; padding:13px 15px; border-radius:13px; border:1px solid var(--line); background:var(--cloud); color:var(--ink); box-shadow:0 3px 0 rgba(11,74,110,.1); transition:transform .09s, box-shadow .09s, border-color .12s; }
+.bill-option:hover { border-color:rgba(15,177,194,.5); }
+.bill-option:active { transform:translateY(3px); box-shadow:0 0 0 rgba(11,74,110,.1); }
+.bill-option.best { border-color:rgba(15,177,194,.6); background:rgba(15,177,194,.07); }
+.bill-option-name { font-weight:800; }
+.bill-option-name em { font-style:normal; font-family:var(--font-mono); font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:#fff; background:var(--sea); border-radius:99px; padding:2px 7px; margin-left:6px; }
+.bill-option-reward { font-family:var(--font-mono); font-size:12.5px; font-weight:700; color:var(--sea-deep); white-space:nowrap; }
+.bill-option:disabled { opacity:.5; }
+.bill-summary { display:grid; gap:6px; margin-bottom:14px; }
+.bill-summary-row { display:flex; justify-content:space-between; gap:12px; padding:9px 12px; border-radius:10px; background:var(--cloud-2); border:1px solid var(--line); font-size:14px; }
+.bill-summary-card { font-weight:700; color:var(--sea-deep); }
+.bill-earned { margin:8px 0 16px; }
+.bill-earned-label { display:block; font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin-bottom:6px; }
+.bill-earned-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.bill-earned-chip { font-family:var(--font-mono); font-weight:700; font-size:13px; color:var(--sea-deep); background:rgba(15,177,194,.12); border-radius:99px; padding:5px 11px; }
+.bill-actions { display:flex; gap:10px; justify-content:space-between; align-items:center; }
+.bill-actions .primary-button { flex:1; }
 
 </style>
 </head><body>
@@ -2185,7 +2224,7 @@ window.PP_DATA = {
     return `${fmtPts(value)} ${pointLabel(key)}`;
   }
   function costOptionText(cost) { return Object.entries(cost).map(([k, v]) => amountText(k, v)).join(" + "); }
-  function costsText(costs) { return (costs || []).map(costOptionText).join("  or  "); }
+  function costsText(costs) { return (costs || []).map(costOptionText).filter(Boolean).join("  or  ") || "Free"; }
 
   // ----- Player / account model ------------------------------------------
   function makeAccount(id, year) { return { id, age: 1, status: "open", spendProgress: 0, bonusEarned: false, openedYear: year || 1, retainedYears: [] }; }
@@ -2531,6 +2570,7 @@ window.PP_DATA = {
       drawSelection: [],
       draftSelection: null,
       spendAssignments: {},
+      billStep: 0,
       transferSelection: null,
       rulesOverlay: { open: false, topic: "overview" },
       onboarding: { open: !meta.onboardingDone, step: 0 },
@@ -3029,7 +3069,7 @@ window.PP_DATA = {
   }
 
   // ----- UI commands ------------------------------------------------------
-  function setScreen(screen) { state.screen = screen; state.moreOpen = false; save(); render(); }
+  function setScreen(screen) { state.screen = screen; state.moreOpen = false; if (screen === "spend") { state.billStep = 0; state.spendAssignments = {}; } save(); render(); }
   function setPlayerSetup(key, value) {
     state.playerSetup[key] = Number(value);
     if (key === "totalPlayers" && state.playerSetup.humanPlayers > state.playerSetup.totalPlayers) state.playerSetup.humanPlayers = state.playerSetup.totalPlayers;
@@ -3078,7 +3118,7 @@ window.PP_DATA = {
   // Carousels are horizontal scroll containers; a full innerHTML re-render resets them to
   // the left. Snapshot each one's scrollLeft before render and restore it after, keyed by
   // (class, occurrence) so the same carousel keeps its place when you tap within it.
-  const CAROUSEL_CLASSES = ["character-grid", "draft-grid", "experience-grid", "partner-grid", "player-strip"];
+  const CAROUSEL_CLASSES = ["character-grid", "draft-grid", "experience-grid", "partner-grid", "player-strip", "account-list"];
   function eachCarousel(fn) {
     if (!app.querySelectorAll) return;
     const counts = {};
@@ -3313,8 +3353,8 @@ window.PP_DATA = {
     return `
       <section class="card-panel paper">
         <div class="eyebrow">Choose your character · ${html(chooser.name)}</div>
-        <h1>Who are you in the points game?</h1>
-        <p>Each character has a different seasonal income, lifestyle cost, taste profile, and signature skill.${limited ? " These two starters are the easiest to clear — win one game to unlock six advanced characters and their achievements." : " High salary helps with fees; deep personal taste can make cheaper experiences score more."}</p>
+        <h1>Who are you?</h1>
+        <p>Different income, lifestyle cost, taste, and a signature skill each.${limited ? " These two starters clear easiest — win once to unlock six advanced characters." : " High salary eases fees; deep taste makes cheaper experiences score more."}</p>
       </section>
       <section class="character-grid">
         ${playable.map((c) => renderCharacterCard(c, false)).join("")}
@@ -3682,16 +3722,19 @@ window.PP_DATA = {
   }
 
   function renderBoard() {
+    // One swipeable deck of every available experience (cheap → dream). Each card shows
+    // its own band + LP, so we skip per-band fold headers and keep the board one-screen.
+    const allExp = ["everyday", "premium", "dream"].flatMap((b) => (state.board[b] || []).map((id) => exp(id)));
     return `
       <section class="card-panel board-hero" id="board-rows">
         <div class="screen-title">
           <div>
             <div class="eyebrow">Life Experience Board</div>
             <h1>Claim an experience</h1>
-            <p>Shared, limited experiences. Your character's taste can change both cost and LP value.</p>
+            <p>Swipe the deck — everyday joys to dream trips. Your character's taste changes cost and LP.</p>
           </div>
         </div>
-        ${["everyday", "premium", "dream"].map(renderExperienceRow).join("")}
+        <div class="experience-grid row-cards">${allExp.map(renderBoardExperience).join("") || `<div class="log-entry">No experiences available right now.</div>`}</div>
       </section>
       ${foldSection("board-goals", "◎", "Your Bucket List Goals", `${humanSeatViewing().ticketIds.map((id) => renderTicket(id, humanSeatViewing())).join("")}<button class="ghost-button compact" data-action="screen" data-screen="goals">Fulfill →</button>`, { badge: `${humanSeatViewing().goalsDone.length}/${humanSeatViewing().ticketIds.length}` })}
       ${foldSection("board-log", "🧾", "Play log", `<div class="log">${state.log.slice(0, 9).map((line) => `<div class="log-entry">${html(line)}</div>`).join("")}</div>`)}`;
@@ -3765,14 +3808,6 @@ window.PP_DATA = {
       </section>`;
   }
 
-  function renderExperienceRow(band) {
-    const label = { everyday: "Everyday Joys", premium: "Premium Trips", dream: "Dream Experiences" }[band];
-    const note = { everyday: "2–4 LP", premium: "5–7 LP", dream: "8–12 LP" }[band];
-    const icon = { everyday: "☕", premium: "✈️", dream: "🌟" }[band];
-    const cards = `<div class="experience-grid row-cards">${(state.board[band] || []).map((id) => renderBoardExperience(exp(id))).join("")}</div>`;
-    return foldSection("exp-" + band, icon, label, cards, { open: band === "everyday", badge: note });
-  }
-
   function renderBoardExperience(e) {
     if (!e) return "";
     const p = humanSeatViewing();
@@ -3812,28 +3847,25 @@ window.PP_DATA = {
           <div><div class="eyebrow">Cards</div><h1>Apply for a card</h1><p>Three offers are face-up from the deck. Apply for one (uses an action, −15 Credit Score) and a new offer is revealed in its place.</p></div>
           <div class="title-actions"><span class="badge ${openAccts(p).length >= WALLET_LIMIT ? "bad" : "good"}">${openAccts(p).length}/${WALLET_LIMIT} cards</span><button class="ghost-button compact" data-action="screen" data-screen="accounts">≡ Manage cards</button></div>
         </div>
-        <div class="draft-selection-panel">
-          <div><div class="eyebrow">Selected</div><h2>${selected ? html(card(selected).name) : "No offer selected"}</h2><p>${selected ? html(card(selected).bonus.label) : "Tap one of the offers below."}</p></div>
-          <div class="draft-selection-actions">
-            <button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-apply">Apply for card</button>
-            <button class="ghost-button" ${selected ? "" : "disabled"} data-action="clear-draft">Clear</button>
-          </div>
-        </div>
-        <div class="market-head"><span class="eyebrow">Offers under review</span><span class="deck-count">${(state.cardDeck || []).length} more in the deck</span></div>
-        <div class="draft-grid">${offer.map((id) => renderDraftCard(card(id), p)).join("") || `<div class="empty-selection">The offer deck is empty.</div>`}</div>
+        <div class="market-head"><span class="eyebrow">Tap to select · tap again to apply</span><span class="deck-count">${(state.cardDeck || []).length} more in the deck</span></div>
+        <div class="draft-grid">${offer.map((id) => renderDraftCard(card(id), p, canCommit)).join("") || `<div class="empty-selection">The offer deck is empty.</div>`}</div>
       </section>
-      <section class="card-panel">
-        <div class="section-heading"><div><h2>Your wallet</h2><p>Open accounts earning points and welcome bonuses.</p></div><span class="badge">${openAccts(p).length} open</span></div>
-        <div class="wallet-row">${openAccts(p).map(({ account, card: c }) => renderWalletCard(account, c)).join("")}</div>
-      </section>`;
+      ${foldSection("draft-wallet", "💳", "Your wallet", `<div class="wallet-row">${openAccts(p).map(({ account, card: c }) => renderWalletCard(account, c)).join("")}</div>`, { badge: `${openAccts(p).length} open` })}`;
   }
 
-  function renderDraftCard(c, player) {
+  function renderDraftCard(c, player, canCommit) {
     if (!c) return "";
     const selected = state.draftSelection === c.id;
     const owned = player.wallet.some((a) => a.id === c.id && a.status !== "closed");
     const blocked = c.scoreRequired && player.score < c.scoreRequired;
-    const label = owned ? "Already in wallet" : blocked ? "Score too low" : selected ? "Selected" : "Select offer";
+    // Two-tap apply: first tap selects, second (on the highlighted card) commits.
+    const btn = owned
+      ? `<button class="ghost-button" disabled>Already in wallet</button>`
+      : blocked
+        ? `<button class="ghost-button" disabled>Score too low</button>`
+        : selected
+          ? `<button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-apply" data-card="${c.id}">✓ Apply for this card</button>`
+          : `<button class="secondary-button" data-action="select-draft" data-card="${c.id}">Select offer</button>`;
     return `
       <article class="strategy-card ${selected ? "selected" : ""} ${owned ? "owned" : ""}">
         <div class="strategy-card-head"><h3>${html(c.name)}</h3><span class="badge ${c.fee ? "warn" : "good"}">${c.fee ? fmtCash(c.fee) + "/yr" : "No fee"}</span></div>
@@ -3841,7 +3873,7 @@ window.PP_DATA = {
         <div class="mini-line">Welcome <strong>${html(c.bonus.label)}</strong></div>
         <div class="mini-line">Focus <strong>${pointLabel(c.focus)}${c.cashback ? " · " + fmtCash(c.cashback) + " cashback" : ""}</strong></div>
         ${c.scoreRequired ? `<div class="mini-line">Needs Credit Score <strong>${c.scoreRequired}</strong></div>` : ""}
-        <button class="${selected ? "ghost-button" : "primary-button"}" ${owned || blocked ? "disabled" : ""} data-action="select-draft" data-card="${c.id}">${label}</button>
+        ${btn}
       </article>`;
   }
 
@@ -3859,6 +3891,8 @@ window.PP_DATA = {
       </div>`;
   }
 
+  // Pay Bills is a one-bill-at-a-time wizard: show a single bill, pick the card to charge
+  // it to, then advance — so the screen never needs vertical scroll.
   function renderSpend() {
     const p = humanSeatViewing();
     const assignments = { ...autoAssignments(p), ...state.spendAssignments };
@@ -3866,43 +3900,49 @@ window.PP_DATA = {
     const canCommit = canSpendAction();
     const pay = p.paycheck || PAYCHECK;
     const em = p.expenseMult || 1;
-    const totals = {};
-    for (const cat of spendCategories) {
-      const c = card(assignments[cat.id]) || accounts[0]?.card;
-      for (const [k, mult] of Object.entries(earnFor(c, cat.id))) totals[k] = (totals[k] || 0) + Math.round(cat.amount * em) * mult;
+    const nBills = spendCategories.length;
+    const step = Math.max(0, Math.min(state.billStep || 0, nBills));
+    const rewardStrOf = (cc, cat) => { const amt = Math.round(cat.amount * em); const r = earnFor(cc, cat.id); return Object.entries(r).map(([k, mult]) => `+${fmtPts(amt * mult)} ${pointLabel(k)}`).join(" · ") || "No points earned"; };
+    const dots = `<div class="bill-dots">${spendCategories.map((_, i) => `<span class="${i < step ? "done" : i === step ? "now" : ""}"></span>`).join("")}</div>`;
+    let body;
+    if (step < nBills) {
+      const cat = spendCategories[step];
+      const amt = Math.round(cat.amount * em);
+      const scoreOf = (cc) => Object.values(earnFor(cc, cat.id)).reduce((s, m) => s + m, 0);
+      const best = accounts.slice().sort((a, b) => scoreOf(b.card) - scoreOf(a.card))[0];
+      body = `
+        <div class="bill-step">
+          <div class="bill-count">${dots}<span>Bill ${step + 1} of ${nBills}</span></div>
+          <div class="bill-head"><div class="bill-amt">${fmtCash(amt)}</div><div><h2>${html(cat.label)}</h2><p>${html(cat.merchant)} · ${html(cat.detail)}</p></div></div>
+          <div class="bill-hint">Charge it to a card:</div>
+          <div class="bill-options">
+            ${accounts.map(({ account, card: cc }) => `
+              <button class="bill-option ${best && account.id === best.account.id ? "best" : ""}" ${canCommit ? "" : "disabled"} data-action="assign-bill" data-card="${account.id}">
+                <span class="bill-option-name">${html(cc.name)}${best && account.id === best.account.id ? ` <em>Best</em>` : ""}</span>
+                <span class="bill-option-reward">${rewardStrOf(cc, cat)}</span>
+              </button>`).join("")}
+          </div>
+          ${step > 0 ? `<button class="ghost-button compact" data-action="bill-back">← Previous bill</button>` : ""}
+        </div>`;
+    } else {
+      const totals = {};
+      for (const cat of spendCategories) { const cc = card(assignments[cat.id]) || accounts[0]?.card; for (const [k, mult] of Object.entries(earnFor(cc, cat.id))) totals[k] = (totals[k] || 0) + Math.round(cat.amount * em) * mult; }
+      body = `
+        <div class="bill-step">
+          <div class="bill-count">${dots}<span>All ${nBills} bills assigned ✓</span></div>
+          <div class="bill-summary">
+            ${spendCategories.map((cat) => { const cc = card(assignments[cat.id]) || accounts[0]?.card; return `<div class="bill-summary-row"><span>${html(cat.label)}</span><span class="bill-summary-card">${html(cc ? cc.name : "—")}</span></div>`; }).join("")}
+          </div>
+          <div class="bill-earned"><span class="bill-earned-label">Credit card points earned this action</span><div class="bill-earned-chips">${Object.entries(totals).map(([k, v]) => `<span class="bill-earned-chip">+${fmtPts(v)} ${pointLabel(k)}</span>`).join("")}</div></div>
+          <div class="bill-actions"><button class="ghost-button compact" data-action="bill-back">← Revise</button><button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-spend">Cash paycheck & pay bills</button></div>
+        </div>`;
     }
     return `
       <section class="card-panel">
-        <div class="screen-title">
-          <div><div class="eyebrow">Pay Bills action</div><h1>Pay bills</h1><p>Your ${fmtCash(pay)} paycheck covers your fixed expenses. Charge each to the card that earns the most points (or chases a welcome bonus). You never pay cash for luxury — only points.</p></div>
-          <button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-spend">Pay bills</button>
-        </div>
-        <div class="paycheck-banner">
-          <div class="paycheck-amt"><span>This season's paycheck</span><strong>${fmtCash(pay)}</strong></div>
-          <div class="paycheck-note">Every dollar of expenses earns points. Leftover (from cashback cards) is just savings — luxury is bought with points, not cash.</div>
-        </div>
-        ${p.debt > 0 ? `<div class="apr-warning">⚠ You're carrying ${fmtCash(p.debt)} in credit card debt at ${APR_ANNUAL}% APR (~6%/season). It grows every season until you pay it down — paying your bills uses spare cash to chip it away.</div>` : ""}
-        <div class="spend-board">
-          ${spendCategories.map((cat) => {
-            const amt = Math.round(cat.amount * em);
-            const c = card(assignments[cat.id]) || accounts[0]?.card;
-            const reward = earnFor(c, cat.id);
-            const rewardStr = Object.entries(reward).map(([k, mult]) => `${mult}x → ${fmtPts(amt * mult)} ${pointLabel(k)}`).join(" + ");
-            return `
-            <article class="spend-cube">
-              <div class="purchase-amount">${fmtCash(amt)}</div>
-              <div><h3>${html(cat.merchant)} <span class="cube-count">${html(cat.label)}</span></h3><p>${html(cat.detail)}</p></div>
-              <select data-action="assign-spend" data-category="${cat.id}">
-                ${accounts.map(({ account, card: cc }) => `<option value="${account.id}" ${assignments[cat.id] === account.id ? "selected" : ""}>${html(cc.name)}</option>`).join("")}
-              </select>
-              <div class="reward-preview"><strong>${html(rewardStr || "No earning")}</strong></div>
-            </article>`;
-          }).join("")}
-        </div>
-      </section>
-      <section class="card-panel">
-        <h2>Credit card points earned this action</h2>
-        <div class="summary-row">${Object.entries(totals).map(([k, v]) => `<div class="summary-tile"><div class="label">${pointLabel(k)}</div><div class="big">${fmtPts(v)}</div><span>${k === "cash" ? "cash" : "points"}</span></div>`).join("")}</div>
+        <div class="screen-title"><div><div class="eyebrow">Pay Bills action</div><h1>Pay bills</h1><p>Charge each fixed bill to the card that earns the most points. Your ${fmtCash(pay)} paycheck covers them.</p></div><span class="badge good">${step}/${nBills}</span></div>
+        <div class="paycheck-banner"><div class="paycheck-amt"><span>This season's paycheck</span><strong>${fmtCash(pay)}</strong></div></div>
+        ${p.debt > 0 ? `<div class="apr-warning">⚠ You're carrying ${fmtCash(p.debt)} in card debt at ${APR_ANNUAL}% APR. Paying bills chips it down.</div>` : ""}
+        ${body}
       </section>`;
   }
 
@@ -3988,7 +4028,7 @@ window.PP_DATA = {
           ${milestonesFor(p).map((m) => `<div class="milestone ${m.complete ? "complete" : ""}"><span>${m.complete ? "✓" : "○"}</span><div>${html(m.text)} <strong>${m.lp} LP</strong></div></div>`).join("")}
         </div>
       </section>
-      ${foldSection("pp-badges", "🎖️", "Travel Badges", `<div class="badge-grid">${TRAVEL_BADGES.map((b) => { const got = !!meta.badges[b.id]; return `<div class="travel-badge ${got ? "got" : "locked"}"><span class="travel-badge-ic">${got ? b.emoji : "🔒"}</span><div><strong>${html(b.name)}</strong><span>${html(b.desc)}</span></div></div>`; }).join("")}</div>`, { open: true, badge: `${badgesEarned()}/${TRAVEL_BADGES.length}` })}
+      ${foldSection("pp-badges", "🎖️", "Travel Badges", `<div class="badge-grid">${TRAVEL_BADGES.map((b) => { const got = !!meta.badges[b.id]; return `<div class="travel-badge ${got ? "got" : "locked"}"><span class="travel-badge-ic">${got ? b.emoji : "🔒"}</span><div><strong>${html(b.name)}</strong><span>${html(b.desc)}</span></div></div>`; }).join("")}</div>`, { badge: `${badgesEarned()}/${TRAVEL_BADGES.length}` })}
       ${foldSection("pp-exp", "🎫", "Experiences claimed", `<div class="experience-grid">${claimedExps(p).map((e) => `<article class="experience-card done"><div class="experience-city">${e.band} · ${e.lp} LP</div><h3>${html(e.name)}</h3><p>${e.tags.map(html).join(" · ")}</p></article>`).join("") || `<div class="log-entry">No experiences claimed yet.</div>`}</div>`, { badge: `${claimedExps(p).length}` })}`;
   }
 
@@ -4197,6 +4237,8 @@ window.PP_DATA = {
     else if (a === "select-draft") selectDraft(d.card);
     else if (a === "clear-draft") { state.draftSelection = null; save(); render(); }
     else if (a === "commit-apply") { if (state.draftSelection && state.cardMarket.includes(state.draftSelection)) humanAct({ type: "apply", cardId: state.draftSelection }); else { notify("Offer gone", "That offer was taken. Pick another."); state.draftSelection = null; render(); } }
+    else if (a === "assign-bill") { const cat = spendCategories[state.billStep || 0]; if (cat) state.spendAssignments[cat.id] = d.card; state.billStep = Math.min((state.billStep || 0) + 1, spendCategories.length); save(); render(); }
+    else if (a === "bill-back") { state.billStep = Math.max(0, (state.billStep || 0) - 1); save(); render(); }
     else if (a === "commit-spend") { const p = humanSeatViewing(); humanAct({ type: "purchase", assignments: { ...autoAssignments(p), ...state.spendAssignments } }); }
     else if (a === "select-transfer") selectTransfer(d.target, Number(d.amount));
     else if (a === "clear-transfer") { state.transferSelection = null; save(); render(); }
