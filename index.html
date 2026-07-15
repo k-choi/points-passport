@@ -662,7 +662,7 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 @media (max-width: 600px) {
   .action-dock { padding:7px 8px calc(7px + env(safe-area-inset-bottom, 0px)); }
   .action-dock-inner { flex-direction:column; align-items:stretch; gap:7px; }
-  .dock-tabs { display:grid; grid-template-columns:repeat(5, 1fr); gap:4px; flex:none; }
+  .dock-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:4px; flex:none; }
   .dock-tab { flex-direction:column; gap:2px; padding:6px 2px; font-size:10.5px; text-align:center; }
   .dock-tab-ic { font-size:16px; }
   .dock-end-wrap { justify-content:space-between; margin-left:0; }
@@ -696,6 +696,16 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 
 /* Single-tap start: no player-count or length choices, just a prominent Start button */
 .setup-start { font-size:16px; padding:14px 30px; margin-top:8px; }
+
+/* More menu (secondary views) + merged-screen title actions */
+.more-menu { display:flex; flex-wrap:wrap; gap:6px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid var(--line); }
+.more-menu .dock-tab { flex:1 1 auto; }
+.title-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.ghost-button.compact { padding:6px 10px; font-size:12.5px; }
+@media (max-width: 600px) {
+  .more-menu { display:grid; grid-template-columns:repeat(3, 1fr); }
+  .more-menu .dock-tab { flex-direction:column; gap:2px; padding:6px 2px; font-size:10.5px; }
+}
 
 </style>
 </head><body>
@@ -2390,6 +2400,7 @@ window.PP_DATA = {
       achievementsOpen: false,
       statusOpen: false,
       showHelp: false,
+      moreOpen: false,
       simulationResults: null,
       result: null
     };
@@ -2870,7 +2881,7 @@ window.PP_DATA = {
   }
 
   // ----- UI commands ------------------------------------------------------
-  function setScreen(screen) { state.screen = screen; save(); render(); }
+  function setScreen(screen) { state.screen = screen; state.moreOpen = false; save(); render(); }
   function setPlayerSetup(key, value) {
     state.playerSetup[key] = Number(value);
     if (key === "totalPlayers" && state.playerSetup.humanPlayers > state.playerSetup.totalPlayers) state.playerSetup.humanPlayers = state.playerSetup.totalPlayers;
@@ -3201,7 +3212,7 @@ window.PP_DATA = {
     const canCommit = canSpendAction() && sel.length >= 1;
     return `
       <section class="card-panel">
-        <div class="screen-title"><div><div class="eyebrow">Draw action</div><h1>Pick more luxury life experiences.</h1><p>Draw new goal cards and <strong>keep at least 1</strong>. More goals mean more potential LP — but every kept goal you don't fulfill costs you disappointment points. Drawing uses one action.</p></div>
+        <div class="screen-title"><div><div class="eyebrow">Draw action</div><h1>Draw goals</h1><p>Draw new goal cards and <strong>keep at least 1</strong>. More goals mean more potential LP — but every kept goal you don't fulfill costs you disappointment points. Drawing uses one action.</p></div>
           <button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-drawgoals">Keep ${sel.length || "…"} & end action</button>
         </div>
         <div class="draft-grid">
@@ -3225,7 +3236,7 @@ window.PP_DATA = {
     const canAct = canSpendAction();
     return `
       <section class="card-panel">
-        <div class="screen-title"><div><div class="eyebrow">Goal action</div><h1>Fulfill your luxury bucket list.</h1><p>Pay a goal any one way — points, a card's signon bonus, or cash. Fulfilling uses one action. Unfulfilled goals you kept cost you LP at the end.</p></div><span class="badge good">${p.goalsDone.length}/${p.ticketIds.length} done</span></div>
+        <div class="screen-title"><div><div class="eyebrow">Goals</div><h1>Fulfill a goal</h1><p>Pay a goal any one way — points, a card's signon bonus, or cash. Fulfilling uses one action. Unfulfilled goals you kept cost you LP at the end.</p></div><div class="title-actions"><span class="badge good">${p.goalsDone.length}/${p.ticketIds.length} done</span><button class="ghost-button compact" data-action="screen" data-screen="drawgoals">◇ Draw more</button></div></div>
         <div class="experience-grid">
           ${p.ticketIds.map((id) => {
             const t = ticket(id);
@@ -3249,18 +3260,30 @@ window.PP_DATA = {
   // Single bottom menu — consolidates the old top tab bar + action dock into one fixed
   // location. Every screen the player navigates to, carrying the tab bar's icons; End turn
   // and actions-left live alongside. `[screen, icon, label]`.
+  // Primary turn actions in the bottom bar. Draw is merged into Goals and Accounts into
+  // Cards (reached from those screens); Players/Passport/Sim live behind "More".
+  // `[screen, icon, label, kind]` — view tabs are always enabled; action tabs only when usable.
   const DOCK_TABS = [
-    ["board", "▦", "Board"],
-    ["draft", "▣", "Apply"],
-    ["spend", "◫", "Pay Bills"],
-    ["transfer", "⇄", "Transfer"],
-    ["goals", "◎", "Goals"],
-    ["drawgoals", "◇", "Draw"],
-    ["accounts", "≡", "Accounts"],
+    ["board", "▦", "Board", "view"],
+    ["draft", "▣", "Cards", "action"],
+    ["spend", "◫", "Pay Bills", "action"],
+    ["transfer", "⇄", "Transfer", "action"],
+    ["goals", "◎", "Goals", "action"]
+  ];
+  const MORE_TABS = [
     ["players", "♟", "Players"],
     ["passport", "★", "Passport"],
     ["simulation", "％", "Sim"]
   ];
+  const MORE_SCREENS = MORE_TABS.map((t) => t[0]);
+  // "Only show usable": an action tab is live only when doing it now makes sense.
+  function actionUsable(screen) {
+    const p = humanSeatViewing();
+    if (!p) return true;
+    if (screen === "transfer") return (p.res.flexible || 0) > 0;
+    if (screen === "goals") return (p.ticketIds || []).length > 0;
+    return true;
+  }
   function renderTurnPanel() {
     const p = activePlayer();
     const youTurn = isHumanTurn();
@@ -3289,12 +3312,19 @@ window.PP_DATA = {
   function renderActionDock() {
     const youTurn = isHumanTurn();
     const left = state.actionsLeft;
+    const canAct = youTurn && left > 0;
+    const tabBtn = ([screen, icon, label, kind]) => {
+      const enabled = kind === "view" ? true : (canAct && actionUsable(screen));
+      return `<button class="dock-tab ${state.screen === screen ? "active" : ""}" ${enabled ? "" : "disabled"} data-action="screen" data-screen="${screen}"><span class="dock-tab-ic">${icon}</span><span class="dock-tab-lbl">${html(label)}</span></button>`;
+    };
+    const moreActive = state.moreOpen || MORE_SCREENS.includes(state.screen);
     return `
       <nav class="action-dock ${youTurn ? "your-turn" : ""}" aria-label="Menu and actions">
+        ${state.moreOpen ? `<div class="more-menu">${MORE_TABS.map(([s, i, l]) => `<button class="dock-tab ${state.screen === s ? "active" : ""}" data-action="screen" data-screen="${s}"><span class="dock-tab-ic">${i}</span><span class="dock-tab-lbl">${html(l)}</span></button>`).join("")}</div>` : ""}
         <div class="action-dock-inner">
           <div class="dock-tabs">
-            ${DOCK_TABS.map(([screen, icon, label]) => `
-              <button class="dock-tab ${state.screen === screen ? "active" : ""}" data-action="screen" data-screen="${screen}"><span class="dock-tab-ic">${icon}</span><span class="dock-tab-lbl">${html(label)}</span></button>`).join("")}
+            ${DOCK_TABS.map(tabBtn).join("")}
+            <button class="dock-tab ${moreActive ? "active" : ""}" data-action="toggle-more"><span class="dock-tab-ic">⋯</span><span class="dock-tab-lbl">More</span></button>
           </div>
           <div class="dock-end-wrap">
             <span class="dock-status">${youTurn ? `<strong>${left}</strong> action${left === 1 ? "" : "s"} left` : "Rivals playing…"}</span>
@@ -3319,7 +3349,7 @@ window.PP_DATA = {
         <div class="screen-title">
           <div>
             <div class="eyebrow">Life Experience Board</div>
-            <h1>Claim the life your character values most.</h1>
+            <h1>Claim an experience</h1>
             <p>Shared, limited experiences. Your character's taste can change both cost and LP value.</p>
           </div>
         </div>
@@ -3450,8 +3480,8 @@ window.PP_DATA = {
     return `
       <section class="card-panel">
         <div class="screen-title">
-          <div><div class="eyebrow">Apply action</div><h1>Pick a credit card offer.</h1><p>Three offers are face-up from the deck. Apply for one (uses an action, −15 Credit Score) and a new offer is revealed in its place.</p></div>
-          <span class="badge ${openAccts(p).length >= WALLET_LIMIT ? "bad" : "good"}">${openAccts(p).length}/${WALLET_LIMIT} cards</span>
+          <div><div class="eyebrow">Cards</div><h1>Apply for a card</h1><p>Three offers are face-up from the deck. Apply for one (uses an action, −15 Credit Score) and a new offer is revealed in its place.</p></div>
+          <div class="title-actions"><span class="badge ${openAccts(p).length >= WALLET_LIMIT ? "bad" : "good"}">${openAccts(p).length}/${WALLET_LIMIT} cards</span><button class="ghost-button compact" data-action="screen" data-screen="accounts">≡ Manage cards</button></div>
         </div>
         <div class="draft-selection-panel">
           <div><div class="eyebrow">Selected</div><h2>${selected ? html(card(selected).name) : "No offer selected"}</h2><p>${selected ? html(card(selected).bonus.label) : "Tap one of the offers below."}</p></div>
@@ -3515,8 +3545,8 @@ window.PP_DATA = {
     return `
       <section class="card-panel">
         <div class="screen-title">
-          <div><div class="eyebrow">Pay Bills action</div><h1>Cash your paycheck, pay the bills.</h1><p>Your ${fmtCash(pay)} paycheck covers your fixed expenses. Charge each to the card that earns the most points (or chases a welcome bonus). You never pay cash for luxury — only points.</p></div>
-          <button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-spend">Cash paycheck & pay bills</button>
+          <div><div class="eyebrow">Pay Bills action</div><h1>Pay bills</h1><p>Your ${fmtCash(pay)} paycheck covers your fixed expenses. Charge each to the card that earns the most points (or chases a welcome bonus). You never pay cash for luxury — only points.</p></div>
+          <button class="primary-button" ${canCommit ? "" : "disabled"} data-action="commit-spend">Pay bills</button>
         </div>
         <div class="paycheck-banner">
           <div class="paycheck-amt"><span>This season's paycheck</span><strong>${fmtCash(pay)}</strong></div>
@@ -3554,7 +3584,7 @@ window.PP_DATA = {
     return `
       <section class="card-panel">
         <div class="screen-title">
-          <div><div class="eyebrow">Transfer action</div><h1>Move Flexible points.</h1><p>Transfer Flexible into Travel or Dining — best during a bonus window. One-way, and it uses your turn.</p></div>
+          <div><div class="eyebrow">Transfer action</div><h1>Transfer points</h1><p>Transfer Flexible into Travel or Dining — best during a bonus window. One-way, and it uses your turn.</p></div>
           <span class="badge warn">${html(currentEvent().name)}</span>
         </div>
         <div class="transfer-selection-panel">
@@ -3590,7 +3620,7 @@ window.PP_DATA = {
     return `
       <section class="card-panel">
         <div class="screen-title">
-          <div><div class="eyebrow">Account action</div><h1>Keep, downgrade, or close one card.</h1><p>A single account move uses your turn. Annual fees are charged at the end of each Year.</p></div>
+          <div><div class="eyebrow">Account action</div><h1>Manage cards</h1><p>A single account move uses your turn. Annual fees are charged at the end of each Year.</p></div>
           <span class="badge ${p.score >= 740 ? "good" : p.score >= 670 ? "warn" : "bad"}">Credit Score ${Math.round(p.score)} · ${scoreBand(p.score)}</span>
         </div>
         <div class="account-list">${p.wallet.map((a) => renderAccountRow(a, canAct, p)).join("")}</div>
@@ -3820,6 +3850,7 @@ window.PP_DATA = {
     else if (a === "replay-tutorial") startTutorial();
     else if (a === "toggle-status") { state.statusOpen = !state.statusOpen; save(); render(); }
     else if (a === "toggle-help") { state.showHelp = !state.showHelp; save(); render(); }
+    else if (a === "toggle-more") { state.moreOpen = !state.moreOpen; save(); render(); }
     else if (a === "open-achievements") { state.achievementsOpen = true; save(); render(); }
     else if (a === "close-achievements") { state.achievementsOpen = false; save(); render(); }
     else if (a === "rules-topic") openRules(d.topic);
