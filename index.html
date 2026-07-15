@@ -2928,7 +2928,7 @@ window.PP_DATA = {
     advancePointer();
     if (!state.result) runUntilHuman();
     if (isHumanTurn() && state.playerSetup.humanPlayers > 1) state.passPending = true;
-    if (isHumanTurn() && !state.passPending) notify(`Your turn — Year ${state.year}, Season ${state.season}`, `You have ${ACTIONS_PER_TURN} actions. Rivals just played their turns.`);
+    if (isHumanTurn() && !state.passPending) notify(`New season — Year ${state.year}, Season ${state.season}`, `You have ${ACTIONS_PER_TURN} actions. Fresh offers are on the board.`);
   }
 
   // After a human commits one action. They keep acting until actions run out or they end the turn.
@@ -3075,8 +3075,23 @@ window.PP_DATA = {
   }
 
   // ----- Rendering --------------------------------------------------------
+  // Carousels are horizontal scroll containers; a full innerHTML re-render resets them to
+  // the left. Snapshot each one's scrollLeft before render and restore it after, keyed by
+  // (class, occurrence) so the same carousel keeps its place when you tap within it.
+  const CAROUSEL_CLASSES = ["character-grid", "draft-grid", "experience-grid", "partner-grid", "player-strip"];
+  function eachCarousel(fn) {
+    if (!app.querySelectorAll) return;
+    const counts = {};
+    app.querySelectorAll(CAROUSEL_CLASSES.map((c) => "." + c).join(",")).forEach((el) => {
+      const cls = CAROUSEL_CLASSES.find((c) => el.classList.contains(c)) || "x";
+      counts[cls] = (counts[cls] || 0) + 1;
+      fn(el, cls + counts[cls]);
+    });
+  }
   function render() {
     try {
+      const carouselScroll = {};
+      eachCarousel((el, k) => { if (el.scrollLeft) carouselScroll[k] = el.scrollLeft; });
       const showBoard = state.gameStarted && !state.setupPhase;
       if (app.classList) { app.classList.toggle("has-dock", showBoard); app.classList.toggle("lean", showBoard && !state.showHelp); }
       app.innerHTML = `
@@ -3090,6 +3105,7 @@ window.PP_DATA = {
         ${state.onboarding && state.onboarding.open ? renderOnboardingOverlay() : ""}
         ${state.trip && state.trip.open ? renderTripOverlay() : ""}
       `;
+      eachCarousel((el, k) => { if (carouselScroll[k]) el.scrollLeft = carouselScroll[k]; });
     } catch (err) {
       app.innerHTML = `
         <div class="card-panel paper" style="margin:20px auto;max-width:560px">
@@ -4030,7 +4046,7 @@ window.PP_DATA = {
         </div>
       </section>
       <section class="card-panel">
-        <div class="section-heading"><div><h2>Your first turn, step by step</h2><p>Each Season you get up to ${ACTIONS_PER_TURN} actions, then click "End my turn." Rivals act in between.</p></div></div>
+        <div class="section-heading"><div><h2>Your first turn, step by step</h2><p>Each Season you get up to ${ACTIONS_PER_TURN} actions, then click "End my turn." A new season brings fresh offers.</p></div></div>
         <div class="mini-list">
           <div class="mini-line">1. <strong>Pick a lane</strong> — income, lifestyle, taste, and discounts shape your strategy</div>
           <div class="mini-line">2. <strong>Apply</strong> for a card whose welcome bonus matches a dream you kept</div>
@@ -4082,7 +4098,7 @@ window.PP_DATA = {
         subtitle: `Up to ${ACTIONS_PER_TURN} actions, then you pass.`,
         bullets: [
           "The game runs 3 Years of 4 Seasons. Each Season is one turn for you.",
-          `Take up to ${ACTIONS_PER_TURN} actions, then click "End my turn." Your rivals act between your turns on the same board, so offers and experiences can vanish.`,
+          `Take up to ${ACTIONS_PER_TURN} actions, then click "End my turn." Each new season refreshes the offers and experiences on the board.`,
           "Apply — take one credit card offer from the deck (−15 Credit Score).",
           "Pay Bills — cash your paycheck and pay expenses to earn points.",
           "Transfer — convert Flexible points into Travel or Dining.",
