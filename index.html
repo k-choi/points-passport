@@ -689,6 +689,11 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
   .status-summary span { font-size:11.5px; }
 }
 
+/* Lean mode (default in-game): hide the explanatory paragraphs so each screen is just
+   headline + action. The "ⓘ Info" toggle in the top bar reveals them. */
+.app-shell.lean .screen-title p,
+.app-shell.lean .section-heading > div > p { display:none; }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -2381,6 +2386,7 @@ window.PP_DATA = {
       onboarding: { open: !meta.onboardingDone, step: 0 },
       achievementsOpen: false,
       statusOpen: false,
+      showHelp: false,
       simulationResults: null,
       result: null
     };
@@ -2910,7 +2916,7 @@ window.PP_DATA = {
   function render() {
     try {
       const showBoard = state.gameStarted && !state.setupPhase;
-      if (app.classList) app.classList.toggle("has-dock", showBoard);
+      if (app.classList) { app.classList.toggle("has-dock", showBoard); app.classList.toggle("lean", showBoard && !state.showHelp); }
       app.innerHTML = `
         ${renderTopbar()}
         ${showBoard ? renderStatusFold() : ""}
@@ -2983,6 +2989,7 @@ window.PP_DATA = {
         </div>
         <div class="top-actions">
           <button class="pill-button" data-action="open-rules" data-topic="story">Rules</button>
+          <button class="ghost-button" data-action="toggle-help" title="Show or hide the on-screen explanations">${state.showHelp ? "Hide info" : "ⓘ Info"}</button>
           <button class="ghost-button" data-action="open-achievements">🏆 ${achievementsUnlockedCount()}/${ACHIEVEMENTS.length}</button>
           <button class="secondary-button" data-action="screen" data-screen="setup">New game</button>
           <button class="ghost-button" data-action="screen" data-screen="guide">How to play</button>
@@ -3828,6 +3835,7 @@ window.PP_DATA = {
     else if (a === "tutorial-skip") endTutorial();
     else if (a === "replay-tutorial") startTutorial();
     else if (a === "toggle-status") { state.statusOpen = !state.statusOpen; save(); render(); }
+    else if (a === "toggle-help") { state.showHelp = !state.showHelp; save(); render(); }
     else if (a === "open-achievements") { state.achievementsOpen = true; save(); render(); }
     else if (a === "close-achievements") { state.achievementsOpen = false; save(); render(); }
     else if (a === "rules-topic") openRules(d.topic);
