@@ -743,6 +743,18 @@ button:disabled { opacity:.42; cursor:not-allowed; filter:none!important; }
 .trip-share-row .primary-button, .trip-share-row .secondary-button { flex:1; }
 .trip-modal .ghost-button { color:#fff; border-color:rgba(255,255,255,.35); background:rgba(255,255,255,.08); }
 
+/* Travel badges (Passport) + trip celebration chips */
+.badge-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px; }
+.travel-badge { display:flex; gap:12px; align-items:center; padding:12px; border-radius:12px; border:1px solid var(--line); background:var(--cloud-2); }
+.travel-badge.got { border-color:rgba(224,178,90,.55); background:linear-gradient(135deg, rgba(224,178,90,.14), rgba(15,177,194,.08)); }
+.travel-badge.locked { opacity:.6; }
+.travel-badge-ic { font-size:30px; line-height:1; flex:0 0 auto; }
+.travel-badge strong { display:block; color:var(--ink); }
+.travel-badge span { display:block; font-size:12px; color:var(--muted); margin-top:2px; }
+.trip-badges-won { margin-top:16px; display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; }
+.trip-badges-won-label { width:100%; text-align:center; color:var(--sun); font-family:var(--font-mono); font-size:12px; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
+.trip-badge-chip { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28); border-radius:99px; padding:6px 12px; font-weight:700; font-size:13px; }
+
 </style>
 </head><body>
 <div id="app" class="app-shell"></div>
@@ -1698,8 +1710,8 @@ window.PP_DATA = {
   // which only clears the game state above.
   const META_KEY = "points-passport-meta-v1";
   function loadMeta() {
-    try { const m = JSON.parse(localStorage.getItem(META_KEY) || "{}"); return { achievements: {}, gamesCleared: 0, advancedUnlocked: false, onboardingDone: false, ...m }; }
-    catch (e) { return { achievements: {}, gamesCleared: 0, advancedUnlocked: false, onboardingDone: false }; }
+    try { const m = JSON.parse(localStorage.getItem(META_KEY) || "{}"); return { achievements: {}, gamesCleared: 0, advancedUnlocked: false, onboardingDone: false, travel: {}, badges: {}, ...m }; }
+    catch (e) { return { achievements: {}, gamesCleared: 0, advancedUnlocked: false, onboardingDone: false, travel: {}, badges: {} }; }
   }
   function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(meta)); } catch (e) {} }
   let meta = loadMeta();
@@ -2668,7 +2680,7 @@ window.PP_DATA = {
         if (priced.flexible) player.flexClaims += 1;
       }
       player.goalsDone.push(goal.id);
-      if (player.isHuman) startTrip(goal.id); // live the trip: Uber → boarding → arrival → postcard
+      if (player.isHuman) { const nb = recordTrip(goal); startTrip(goal.id, nb); } // live the trip + collect badges
       player.lastAction = `Fulfilled "${goal.name}" (+${goal.lp} LP)`;
       logActor(player, `${player.name} fulfilled a bucket list goal: ${goal.name} (+${goal.lp} LP).`);
     } else if (action.type === "account") {
@@ -3367,8 +3379,67 @@ window.PP_DATA = {
     return { city, emoji: "✈️", flight: "PP 900" };
   }
   function soloPlayer() { return state.players.find((p) => p.isHuman) || state.players[0] || null; }
+
+  // ---- Travel badges: collected across ALL plays (persisted in meta), earned by the KIND
+  // of trips you take — ski, beach, first class, luxury suites, lounge access, and so on.
+  const TRAVEL_BADGES = [
+    { id: "first-trip", emoji: "🧳", name: "Bon Voyage", desc: "Take your very first trip." },
+    { id: "first-class", emoji: "🥂", name: "First Class Flyer", desc: "Fly first class." },
+    { id: "ski", emoji: "🎿", name: "Powder Hound", desc: "Take a ski trip." },
+    { id: "beach", emoji: "🏖️", name: "Beach Bum", desc: "Take a beach getaway." },
+    { id: "mountain", emoji: "⛰️", name: "Summit Seeker", desc: "Take a mountain trip." },
+    { id: "luxe-hotel", emoji: "🛎️", name: "Suite Life", desc: "Stay in a luxury hotel." },
+    { id: "lounge", emoji: "🍸", name: "Lounge Access", desc: "Take 3 flights — hello, airport lounge." },
+    { id: "foodie", emoji: "🍽️", name: "Foodie Passport", desc: "Take 3 culinary trips." },
+    { id: "culture", emoji: "🏛️", name: "Culture Collector", desc: "Take 3 cultural trips." },
+    { id: "globetrotter", emoji: "🌍", name: "Globetrotter", desc: "Visit 5 different destinations." },
+    { id: "frequent", emoji: "✈️", name: "Frequent Flyer", desc: "Take 10 trips in all." },
+    { id: "legend", emoji: "🏆", name: "Travel Legend", desc: "Take 25 trips in all." }
+  ];
+  const BADGE_RULES = {
+    "first-trip": (t) => (t.total || 0) >= 1,
+    "first-class": (t) => (t.firstClass || 0) >= 1,
+    "ski": (t) => (t.ski || 0) >= 1,
+    "beach": (t) => (t.beach || 0) >= 1,
+    "mountain": (t) => (t.mountain || 0) >= 1,
+    "luxe-hotel": (t) => (t.luxuryHotel || 0) >= 1,
+    "lounge": (t) => (t.flights || 0) >= 3,
+    "foodie": (t) => (t.food || 0) >= 3,
+    "culture": (t) => (t.culture || 0) >= 3,
+    "globetrotter": (t) => Object.keys(t.dests || {}).length >= 5,
+    "frequent": (t) => (t.total || 0) >= 10,
+    "legend": (t) => (t.total || 0) >= 25
+  };
+  function badgesEarned() { return TRAVEL_BADGES.filter((b) => meta.badges[b.id]).length; }
+  function tripCategories(goal) {
+    const d = destOf(goal); const tags = (goal.tags || []).map((t) => t.toLowerCase()); const name = (goal.name || "").toLowerCase();
+    const label = (d.city + " " + name); const has = (t) => tags.includes(t); const cats = [];
+    if (/aspen|\bski\b/i.test(label)) cats.push("ski");
+    if (/maldives|hawaii|ibiza|amalfi|beach|club/i.test(label)) cats.push("beach");
+    if (/patagonia|aspen|trek|alps|safari/i.test(label)) cats.push("mountain");
+    if (has("food")) cats.push("food");
+    if (has("culture")) cats.push("culture");
+    if (has("city")) cats.push("city");
+    if (has("flight") || /first class|suites/.test(name)) cats.push("flights");
+    if ((has("flight") && has("luxury")) || /first class/.test(name)) cats.push("firstClass");
+    if (has("hotel") && has("luxury")) cats.push("luxuryHotel");
+    return cats;
+  }
+  // Log a completed trip and return any NEWLY earned badges (for the celebration).
+  function recordTrip(goal) {
+    const t = meta.travel = meta.travel || {};
+    t.total = (t.total || 0) + 1;
+    t.dests = t.dests || {}; t.dests[destOf(goal).city] = true;
+    for (const c of tripCategories(goal)) t[c] = (t[c] || 0) + 1;
+    const newly = [];
+    for (const b of TRAVEL_BADGES) { if (!meta.badges[b.id] && BADGE_RULES[b.id] && BADGE_RULES[b.id](t)) { meta.badges[b.id] = Date.now(); newly.push(b); } }
+    saveMeta();
+    for (const b of newly) notify(`${b.emoji} New badge: ${b.name}`, b.desc);
+    return newly;
+  }
+
   const TRIP_STEPS = 4;
-  function startTrip(goalId) { state.trip = { open: true, step: 0, goalId }; }
+  function startTrip(goalId, newBadges) { state.trip = { open: true, step: 0, goalId, badges: (newBadges || []).map((b) => ({ emoji: b.emoji, name: b.name })) }; }
   function tripNav(delta) {
     if (!state.trip) return;
     const next = state.trip.step + delta;
@@ -3400,6 +3471,7 @@ window.PP_DATA = {
          <div class="eyebrow">Now arriving</div>
          <h2>Welcome to ${html(d.city)}</h2>
          <div class="trip-arrival-meta"><span>Flight ${d.flight}</span><span>Local time ${timeStr}</span></div>
+         ${t.badges && t.badges.length ? `<div class="trip-badges-won"><div class="trip-badges-won-label">🎖️ New badge${t.badges.length > 1 ? "s" : ""}!</div>${t.badges.map((bd) => `<span class="trip-badge-chip">${bd.emoji} ${html(bd.name)}</span>`).join("")}</div>` : ""}
        </div>
        <button class="primary-button trip-cta" data-action="trip-next">Share the moment →</button>`,
       `<div class="trip-postcard">
@@ -3823,6 +3895,12 @@ window.PP_DATA = {
         <div class="bucket-card">
           <h3>${html(personalBoardById(p.personalBoardId).name)}</h3><p>${html(personalBoardById(p.personalBoardId).style)}</p>
           ${milestonesFor(p).map((m) => `<div class="milestone ${m.complete ? "complete" : ""}"><span>${m.complete ? "✓" : "○"}</span><div>${html(m.text)} <strong>${m.lp} LP</strong></div></div>`).join("")}
+        </div>
+      </section>
+      <section class="card-panel">
+        <div class="section-heading"><div><h2>Travel Badges</h2><p>Collected across every trip you take, over all your journeys.</p></div><span class="badge good">${badgesEarned()}/${TRAVEL_BADGES.length}</span></div>
+        <div class="badge-grid">
+          ${TRAVEL_BADGES.map((b) => { const got = !!meta.badges[b.id]; return `<div class="travel-badge ${got ? "got" : "locked"}"><span class="travel-badge-ic">${got ? b.emoji : "🔒"}</span><div><strong>${html(b.name)}</strong><span>${html(b.desc)}</span></div></div>`; }).join("")}
         </div>
       </section>
       <section class="card-panel">
